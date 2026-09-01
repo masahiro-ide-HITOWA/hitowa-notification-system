@@ -1,0 +1,216 @@
+1. プロジェクト概要
+本プロジェクトは、現場社員（BYOD/PCなし）と本部社員（PC/Google Workspace貸与）のデバイス環境の違いを吸収し、各種社内SaaS（カオナビ、クラウドハウス労務、TOKIUM等）からの通知を一元管理・最適なチャネルへマルチ配信する「HITOWA統合通知ポータルシステム（仮）」の開発を目的とする。
+
+既存のWordPressポータルからは完全独立した単独のWebアプリケーションとして構築し、以下の役割分離と認証基盤の統合を実現する。
+
+単独Web通知ポータル: 通知の集約一覧表示・既読管理・ダイレクトジャンプ中継・マイページでの通知先（LINE/Slack/Google Chat）設定
+
+マルチチャネル通知配信:
+
+本部社員: SAML Assertion内の mail 属性（Gmailアドレス）存在を検知し、Google Chat（Bot）へ自動連携・DM配信
+
+現場社員: LINE公式アカウントへプッシュ配信（任意連携）
+
+希望者: Slack Bot へDM配信（任意連携）
+
+自社IdP (SAML 2.0): OS標準ブラウザ上での一元的なSSO一次認証・認可
+
+2. 技術スタック
+フロントエンド: Next.js (App Router), React, TypeScript, Tailwind CSS, Lucide Icons
+
+バックエンド (AWS Lambda): Node.js (v20+), TypeScript, AWS SDK v3 (@aws-sdk/client-dynamodb, @aws-sdk/client-sqs, @aws-sdk/client-ses), @line/bot-sdk
+
+インフラ定義 (IaC): AWS CDK v2 (TypeScript)
+
+データベース: Amazon DynamoDB（オンデマンドモード, TTL機能）
+
+非同期キュー / 外部配信: Amazon SQS, Amazon API Gateway, Amazon CloudFront, Amazon S3, Amazon SES
+
+テスト環境: Vitest
+
+3. ディレクトリ・ファイル構成
+Plaintext
+hitowa-notification-system/
+├── .cursorrules                  # Cursor専用AIコード生成制御ルール
+├── CLAUDE.md                     # CLI補助用ガイドライン
+├── package.json                  # npm workspaces設定ファイル
+├── apps/
+│   └── web/                      # 単独Web通知ポータル (Next.js)
+│       ├── app/
+│       │   ├── layout.tsx        # 共通レイアウト（Header/Footer）
+│       │   ├── page.tsx          # マイ通知一覧画面（メイン）
+│       │   ├── mypage/
+│       │   │   └── page.tsx      # マイページ（チャネル連携設定・ON/OFFスイッチ）
+│       │   └── redirect/
+│       │       └── page.tsx      # ダイレクトジャンプ中継・既読化処理ページ
+│       └── components/
+│           ├── Header.tsx        # SAMLログイン情報表示ヘッダー
+│           ├── NotificationCard.tsx # 通知カードUI
+│           └── FilterBar.tsx     # 未読/すべて切り替え＆カテゴリタグフィルター
+├── packages/
+│   ├── backend/                  # Lambda ビジネスロジック
+│   │   ├── models/
+│   │   │   └── notification.ts   # 共通DTO・DynamoDB型定義
+│   │   ├── handlers/
+│   │   │   ├── receiveNotification.ts  # 外部SaaS受付API (202 Accepted & SQS投入)
+│   │   │   ├── processNotification.ts  # 配信分岐・マルチチャネル送信ワーカー
+│   │   │   └── samlCallback.ts         # SAML属性検証 & JITプロビジョニング
+│   │   └── services/
+│   │       ├── dynamoService.ts # DynamoDB操作モジュール
+│   │       ├── lineService.ts   # LINE Messaging API送信モジュール
+│   │       └── gchatService.ts  # Google Chat API送信モジュール
+│   └── infrastructure/           # AWS CDK インフラ定義
+│       ├── bin/
+│       │   └── infrastructure.ts
+│       └── lib/
+│           └── infrastructure-stack.ts # S3, CloudFront, API Gateway, Lambda, SQS, DynamoDB構成
+└── tests/                        # Vitest ユニットテスト
+    ├── receiveNotification.test.ts
+    └── processNotification.test.ts
+4. データモデル / DB設計
+4.1 DynamoDB テーブル設計 (NotificationTable)
+パーティションキー (PK): employee_id (String: 社内社員コード, 例: E12345)
+
+ソートキー (SK): notification_id (String: UUID, 例: NOTIF#550e8400-e29b-41d4-a716-446655440000)
+
+TTL属性: expire_at (Number: Unix Timestamp, 作成日時 + 90日)
+
+TypeScript
+// packages/backend/models/notification.ts
+
+// 外部SaaSからの受信Payload（共通規格）
+export interface IncomingNotificationDTO {
+  target_employee_id: string; // 社内社員ID
+  source_system: 'KAONAVI' | 'CLOUD_HOUSE' | 'TOKIUM' | string;
+  title: string;
+  body: string;
+  action_url: string;        // 対象SaaSの該当詳細/申請画面URL
+  category: '人事' | '労務' | '経費' | '全社' | string;
+}
+
+// DynamoDB レコード構造
+export interface NotificationItem {
+  employee_id: string;        // PK
+  notification_id: string;    // SK
+  source_system: string;
+  title: string;
+  body: string;
+  action_url: string;
+  category: string;
+  status: 'unread' | 'read';  // 未読 / 既読
+  created_at: string;         // ISO8601
+  expire_at: number;          // TTL (90日後)
+}
+
+// ユーザーチャネル設定レコード (`PK: employee_id`, `SK: USER#SETTINGS`)
+export interface UserSettingsItem {
+  employee_id: string;        // PK
+  sk: 'USER#SETTINGS';        // SK
+  google_email?: string;
+  line_user_id?: string;
+  slack_user_id?: string;
+  channels: {
+    google_chat: { enabled: boolean };
+    line: { enabled: boolean };
+    slack: { enabled: boolean };
+  };
+  updated_at: string;
+}
+5. 機能要件
+5.1 バックエンド & インフラ機能
+共通通知受付API (receiveNotification.ts):
+
+カオナビ、クラウドハウス労務、TOKIUM等のWebhook/POSTリクエストを受信。
+
+入力データのスキーマバリデーションを実施。
+
+AWS SDK v3 を使用して SQS キューへ投入し、外部SaaSへのタイムアウトを防ぐため即座に 202 Accepted を返却。
+
+配信分岐ワーカー (processNotification.ts):
+
+SQSから非同期でイベントを受領。
+
+DynamoDBからユーザー設定（channels）を参照し、enabled: true になっている全有効チャネル（Google Chat, LINE, Slack）へ並列送信。
+
+LINE/Slack未連携の場合は外部送信をスキップし、DynamoDBへの未読レコード追加のみ完了。
+
+LINE API等のレート制限（429）回避のため、SQSとLambda予約済み並列数による流量制御および指数バックオフ再送を実施。
+
+SAML属性判定 & JITプロビジョニング (samlCallback.ts):
+
+SAML Response内の Assertion を検証。
+
+mail 属性（Gmailアドレス）が存在する場合（本部社員）：google_chat.enabled を自動的に true に設定して更新。
+
+mail 属性がない場合（現場社員）：google_chat は false のままとし、LINE任意連携を推奨する。
+
+5.2 フロントエンド機能（Web通知ポータル）
+マイ通知一覧画面 (/):
+
+ヘッダーにSAML SSOログイン中のユーザー情報（社員ID、名前、区分）を表示。
+
+「未読のみ / すべて表示」のタブ切り替えおよび一括既読処理機能。
+
+カテゴリ（経費精算、人事評価、労務管理等）によるフィルタリングUI。
+
+各通知カードにダイレクトジャンプボタンを設置。
+
+マイページ (/mypage):
+
+各チャネル（Google Chat, LINE, Slack）の連携状態・スイッチを表示。
+
+本部社員（Gmail保持）には「Google Chat SAML自動連動中」のバッジを表示。
+
+現場社員には「LINE連携インセンティブ案内」と連携ワンタイムトークン発行ボタンを表示。
+
+ダイレクトジャンプ中継処理 (/redirect):
+
+通知メッセージ内のディープリンクをタップ時に起動。
+
+SAMLセッションをチェック後、対象通知のステータスを read に更新し、目的のSaaS画面へHTTPリダイレクトを実行。
+
+6. 実装ステップ
+Cursor（Composer）に対し、以下のステップ順で実装を指示すること。
+
+ステップ1：型定義・DTOの構築
+
+packages/backend/models/notification.ts を作成。
+
+ステップ2：共通通知受付Lambdaハンドラー作成
+
+packages/backend/handlers/receiveNotification.ts を作成。
+
+ステップ3：配信分岐・送信ワーカーLambdaハンドラー作成
+
+packages/backend/handlers/processNotification.ts を作成。
+
+ステップ4：SAMLコールバック・JITプロビジョニング作成
+
+packages/backend/handlers/samlCallback.ts を作成。
+
+ステップ5：AWS CDK インフラ定義スタックの作成
+
+packages/infrastructure/lib/infrastructure-stack.ts を更新。
+
+ステップ6：フロントエンド（マイ通知一覧＆マイページ）の実装
+
+apps/web/app/page.tsx、apps/web/app/mypage/page.tsx、各コンポーネントを作成。
+
+ステップ7：Vitest ユニットテストの実行とバグ修正
+
+tests/ 内にテストファイルを作成し、npx vitest run をパスさせる。
+
+7. 特記事項・コーディングルール
+7.1 ガバナンス・コード制約（.cursorrules要約）
+ファイル規模制限: 1ファイルのコード量は原則200行以内に収め、コンポーネントやサービスモジュールを細かく分離すること。
+
+TypeScript厳格化: any 型の使用を一切禁止する。
+
+差分修正の徹底: ファイル全体の再生成を避け、必要な箇所のみを差分修正（Diff）すること。
+
+7.2 エラーハンドリング・セキュリティルール
+IDOR対策: ダイレクトジャンプURLや通知詳細アクセス時は、必ずSAMLセッションの社員IDと通知の宛先 employee_id を照合し、成りすまし閲覧を遮断すること。
+
+10秒制限の厳守: 受付API (receiveNotification) 内で重い非同期送信処理を行わず、必ずSQS投入完了時点で 202 Accepted を返却すること。
+
+UIデザインポリシー: Tailwind CSSを用い、清潔感のあるモダンなビジネスUI（レスポンシブ対応・モバイルファーストデザイン）とすること。

@@ -1,0 +1,21 @@
+{
+  "name": "@hitowa/backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.888.0",
+    "@aws-sdk/client-sqs": "^3.888.0",
+    "@aws-sdk/lib-dynamodb": "^3.888.0",
+    "@node-saml/node-saml": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.3.0",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
