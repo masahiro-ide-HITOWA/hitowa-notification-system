@@ -1,0 +1,16 @@
+﻿# AI Coding Rules & Guidelines (.cursorrules)
+
+## 1. 基本原則
+- 1つのファイルのコード量は原則「200行以内」に抑え、モジュール分割を徹底すること。
+- レイヤー間の関心事の分離（SoC）を徹底し、ロジック・UI・インフラ定義を混在させないこと。
+- TypeScriptの型定義（interface / type）を厳密に行い、ny 型の使用を禁止する。
+
+## 2. ディレクトリ構造の責務
+- pps/web/: HITOWA統合通知ポータル (Next.js App Router + Tailwind CSS)
+- packages/backend/: AWS Lambda用ビジネスロジック (受付FN, 送信制御FN)
+- packages/infrastructure/: AWS CDK インフラ定義 (CloudFront, S3, API Gateway, Lambda, SQS, DynamoDB)
+
+## 3. コード生成・修正時のルール
+- **差分修正（Diff）の徹底:** 既存ファイルを全生成せず、該当関数・行のみを差分修正すること。
+- **破壊的変更の禁止:** 既存のAPIレスポンス構造やDynamoDBキー構造をユーザーの許可なく変更しないこと。
+- **テスト同根:** ビジネスロジックを修正・追加する際は、必ず 	ests/ にVitestテストを作成・更新すること。
