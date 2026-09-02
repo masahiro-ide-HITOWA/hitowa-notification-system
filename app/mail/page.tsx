@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BellRing, 
   LayoutDashboard, 
@@ -15,7 +15,8 @@ import {
   Paperclip, 
   Clock, 
   X,
-  ArrowLeft
+  ArrowLeft,
+  AlertCircle
 } from 'lucide-react';
 
 interface MailItem {
@@ -31,79 +32,48 @@ interface MailItem {
 }
 
 export default function WebMailPage() {
-  const [mails, setMails] = useState<MailItem[]>([
-    {
-      id: '1',
-      fromName: 'HITOWA総務部',
-      fromAddress: 'somu@hitowa.com',
-      subject: '【連絡】9月の定例清掃および設備点検の日程について',
-      preview: '各施設の現場スタッフの皆様、お疲れ様です。9月の定例清掃スケジュールをお知らせいたします。',
-      body: `各施設の現場スタッフの皆様
-
-お疲れ様です。総務部です。
-2026年9月の定例清掃および設備点検の日程について、以下の通りご連絡いたします。
-
-【日時】2026年9月15日(火) 10:00〜15:00
-【対象】全事業所・現場オフィス
-
-作業時間中は一部共有スペースの利用が制限されますので、事前にご確認をお願いいたします。
-添付のPDF資料も併せてご確認ください。
-
-よろしくお願いいたします。`,
-      date: '10:30',
-      isRead: false,
-      hasAttachment: true,
-    },
-    {
-      id: '2',
-      fromName: 'カオナビ通知システム',
-      fromAddress: 'no-reply@kaonavi.jp',
-      subject: '【カオナビ】評価シートの提出依頼が届いています',
-      preview: '2026年度上期 目標設定評価シートの入力期限が近づいています。マイ通知一覧からも確認できます。',
-      body: `※このメールはシステムからの自動送信です。
-
-目標設定評価シートの提出期日は今月末までとなっております。
-ポータルの「マイ通知一覧」または以下のリンクからカオナビにアクセスの上、入力をお願いします。`,
-      date: '昨日',
-      isRead: true,
-      hasAttachment: false,
-    },
-    {
-      id: '3',
-      fromName: 'エリアマネージャー 佐藤',
-      fromAddress: 'sato.m@hitowa.com',
-      subject: '来週のシフト確認のお願い',
-      preview: 'お疲れ様です。来週分のシフト調整が完了しましたので、確認をお願いします。',
-      body: `お疲れ様です。佐藤です。
-
-来週の現場シフト表を確定させました。
-変更点やご都合が悪い日がありましたら、明日17時までに返信をお願いいたします。`,
-      date: '9月1日',
-      isRead: true,
-      hasAttachment: false,
-    },
-  ]);
-
+  const [mails, setMails] = useState<MailItem[]>([]);
   const [selectedMail, setSelectedMail] = useState<MailItem | null>(null);
   const [filterFolder, setFilterFolder] = useState<'inbox' | 'sent'>('inbox');
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 新規メールフォームの状態
+  // 新規メールフォーム用の状態
   const [composeTo, setComposeTo] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
 
-  // 手動メール更新（IMAPオンデマンド受信のシミュレーション）
-  const handleRefresh = () => {
+  // /api/mail からKAGOYAメールをオンデマンド取得
+  const fetchMails = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+    try {
+      const response = await fetch('/api/mail');
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data)) {
+        setMails(result.data);
+      } else {
+        // KAGOYA未接続時または環境変数未設定時はエラー理由を表示
+        setErrorMessage(result.message || 'メールの取得に失敗しました。');
+      }
+    } catch (error: any) {
+      console.error('メール取得エラー:', error);
+      setErrorMessage('APIサーバーとの通信に失敗しました。');
+    } finally {
+      setIsLoading(false);
       setIsRefreshing(false);
-    }, 1000);
+    }
   };
 
-  // メール選択・既読化
+  // 初回レンダリング時に取得
+  useEffect(() => {
+    fetchMails();
+  }, []);
+
   const handleSelectMail = (mail: MailItem) => {
     setSelectedMail(mail);
     setMails(prev =>
@@ -111,10 +81,9 @@ export default function WebMailPage() {
     );
   };
 
-  // メール送信処理（SMTP送信シミュレーション）
   const handleSendMail = (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`メールを送信しました: ${composeTo}`);
+    alert(`メール送信要求を受け付けました: ${composeTo}`);
     setIsComposeOpen(false);
     setComposeTo('');
     setComposeSubject('');
@@ -185,10 +154,10 @@ export default function WebMailPage() {
                 <span>新規作成</span>
               </button>
               <button
-                onClick={handleRefresh}
+                onClick={fetchMails}
                 disabled={isRefreshing}
                 className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-slate-200"
-                title="メールを受信 (IMAP同期)"
+                title="KAGOYAメールを受信 (オンデマンドIMAP)"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
                 <span className="hidden md:inline">受信用更新</span>
@@ -215,13 +184,12 @@ export default function WebMailPage() {
 
         {/* 2カラムレイアウト (メールリスト ＆ メール詳細) */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 flex-1">
-          {/* 左側: サイドフォルダ ＆ メール一覧 */}
+          {/* 左側: フォルダ ＆ メール一覧 */}
           <div
             className={`md:col-span-5 lg:col-span-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col ${
               selectedMail ? 'hidden md:flex' : 'flex'
             }`}
           >
-            {/* フォルダタブ */}
             <div className="p-2 border-b border-slate-100 flex items-center gap-1 bg-slate-50/50 rounded-t-xl text-xs font-bold">
               <button
                 onClick={() => setFilterFolder('inbox')}
@@ -247,11 +215,24 @@ export default function WebMailPage() {
               </button>
             </div>
 
-            {/* メールリスト */}
+            {/* メールリスト表示 */}
             <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px] flex-1">
-              {filteredMails.length === 0 ? (
+              {isLoading ? (
+                <div className="p-8 text-center text-xs text-slate-400 space-y-2">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto text-indigo-600" />
+                  <p>KAGOYAからメールを受信中...</p>
+                </div>
+              ) : errorMessage ? (
+                <div className="p-4 bg-amber-50 text-amber-800 rounded-lg m-3 text-xs flex items-start gap-2 border border-amber-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-bold">IMAP未接続通知</p>
+                    <p className="mt-1 text-[11px] text-amber-700">{errorMessage}</p>
+                  </div>
+                </div>
+              ) : filteredMails.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-400">
-                  該当するメールはありません
+                  受信トレイは空です
                 </div>
               ) : (
                 filteredMails.map(mail => (
@@ -292,7 +273,6 @@ export default function WebMailPage() {
           >
             {selectedMail ? (
               <div className="flex flex-col h-full space-y-4">
-                {/* スマホ用戻るボタン */}
                 <button
                   onClick={() => setSelectedMail(null)}
                   className="md:hidden self-start flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg mb-2"
@@ -301,7 +281,6 @@ export default function WebMailPage() {
                   <span>一覧に戻る</span>
                 </button>
 
-                {/* メールヘッダー */}
                 <div className="border-b border-slate-100 pb-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <h1 className="text-base md:text-lg font-bold text-slate-900 leading-snug">
@@ -326,12 +305,10 @@ export default function WebMailPage() {
                   </div>
                 </div>
 
-                {/* メール本文 */}
                 <div className="flex-1 py-2 text-xs md:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap overflow-y-auto">
                   {selectedMail.body}
                 </div>
 
-                {/* 返信アクションボタン */}
                 <div className="pt-4 border-t border-slate-100 flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -363,7 +340,7 @@ export default function WebMailPage() {
             <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
               <span className="text-xs font-bold flex items-center gap-1.5">
                 <Mail className="w-4 h-4 text-indigo-400" />
-                新規メール作成 (KAGOYA SMTP送信)
+                新規メール作成
               </span>
               <button
                 onClick={() => setIsComposeOpen(false)}
