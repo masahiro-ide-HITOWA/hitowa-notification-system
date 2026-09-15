@@ -10,7 +10,7 @@ export default function Header() {
     <header className="bg-slate-900 text-white p-3 sticky top-0 z-40 shadow-md">
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-indigo-400">
-          <span class="text-lg">🔔</span>
+          <span className="text-lg">🔔</span>
           <Link href="/" className="hover:text-indigo-300 transition">
             <span className="hidden sm:inline">HITOWA統合通知ポータル</span>
             <span className="sm:hidden text-sm">HITOWAポータル</span>

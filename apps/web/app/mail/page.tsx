@@ -31,7 +31,7 @@ const mockMails: MailItem[] = [
 提出期限：2026/09/15
 
 ■ 入力・提出用URL
-https://p.kaonavi.jp/member/evaluations/2026_first_half
+/saas/kaonavi/1
 ----------------------------------------`,
   },
   {

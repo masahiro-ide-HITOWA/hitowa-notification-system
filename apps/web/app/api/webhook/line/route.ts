@@ -1,52 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { messagingApi, WebhookEvent } from '@line/bot-sdk';
 
-const lineClient = new messagingApi.MessagingApiClient({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || 'dummy_token',
+const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+
+// 最新の @line/bot-sdk 仕様に合わせたクライアント初期化
+const client = new messagingApi.MessagingApiClient({
+  channelAccessToken: channelAccessToken,
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const events: WebhookEvent[] = body.events || [];
+
+    // LINE Developers の「検証」ボタンからのダミーリクエスト対策
+    if (events.length === 0) {
+      return NextResponse.json({ message: 'OK (Verification Success)' }, { status: 200 });
+    }
 
     for (const event of events) {
       if (event.type === 'message' && event.message.type === 'text') {
-        const userText = event.message.text.trim();
-        const lineUserId = event.source?.userId;
+        const userMessage = event.message.text.trim();
+        const replyToken = event.replyToken;
 
-        if (!lineUserId) continue;
+        if (!replyToken) continue;
 
-        if (/^\d{6}$/.test(userText)) {
-          console.log(`[LINE Webhook] 6桁コード受領: ${userText} (LINE User ID: ${lineUserId})`);
-
-          // LINEアクセストークンが設定されている場合は応答メッセージを返信 (v8仕様)
-          if (process.env.LINE_CHANNEL_ACCESS_TOKEN && event.replyToken) {
-            await lineClient.replyMessage({
-              replyToken: event.replyToken,
-              messages: [
-                {
-                  type: 'text',
-                  text: `【連携完了】\n6桁コード (${userText}) の認証が完了しました！`,
-                },
-              ],
-            });
-          }
-
-          return NextResponse.json({
-            success: true,
-            message: `6桁コード(${userText})の照合とLINE User ID(${lineUserId})の連携処理が完了しました。`,
+        // 6桁の数字（ワンタイムコード）が送信された場合
+        if (/^\d{6}$/.test(userMessage)) {
+          // TODO: 本番ではここで DynamoDB 等を参照してユーザー検証・紐付けを行います
+          await client.replyMessage({
+            replyToken: replyToken,
+            messages: [
+              {
+                type: 'text',
+                text: `コード【${userMessage}】を受信しました。HITOWAポータルとの連携が完了しました！`,
+              },
+            ],
+          });
+        } else {
+          await client.replyMessage({
+            replyToken: replyToken,
+            messages: [
+              {
+                type: 'text',
+                text: 'ポータル画面で発行された6桁の連携コードを送信してください。',
+              },
+            ],
           });
         }
       }
     }
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('LINE Webhook Error:', error);
-    return NextResponse.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Success' }, { status: 200 });
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
