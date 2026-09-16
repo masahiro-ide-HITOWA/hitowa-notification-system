@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
 
@@ -29,7 +29,7 @@ export async function POST() {
       success: true,
       oneTimeCode,
       expiresAt,
-      lineAddFriendUrl: https://line.me/R/ti/p/ + process.env.LINE_BOT_BASIC_ID,
+      lineAddFriendUrl: "https://line.me/R/ti/p/" + (process.env.LINE_BOT_BASIC_ID || ""),
     });
   } catch (error) {
     console.error("Failed to issue one-time code:", error);

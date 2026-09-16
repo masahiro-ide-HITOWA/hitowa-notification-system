@@ -1,36 +1,63 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function MyPage() {
-  const [code, setCode] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [codeData, setCodeData] = useState<{
+    oneTimeCode: string;
+    expiresAt: string;
+    lineAddFriendUrl: string;
+  } | null>(null);
+  const [isLinked, setIsLinked] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
+  // ワンタイムコード発行処理（本番用 API 呼び出し）
   const handleGenerateCode = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/code', {
-        headers: { 'x-user-id': '00400611' },
-      });
+      const res = await fetch('/api/line/issue-code', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setCode(data.code);
+        setCodeData(data);
+        setIsLinked(false);
       } else {
-        alert('コード発行に失敗しました');
+        alert('コード発行に失敗しました: ' + (data.error || ''));
       }
     } catch {
-      // フォールバック生成
-      setCode(Math.floor(100000 + Math.random() * 900000).toString());
+      alert('予期せぬエラーが発生しました');
     } finally {
       setLoading(false);
     }
   };
 
+  // コード送信後のポーリング自動検出
+  useEffect(() => {
+    if (!codeData || isLinked) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch('/api/line/check-status?code=' + codeData.oneTimeCode);
+        const data = await res.json();
+
+        if (data.success && data.status === 'COMPLETED') {
+          setIsLinked(true);
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 2000);
+
+    return () => clearInterval(intervalId);
+  }, [codeData, isLinked]);
+
+  // クリップボードコピー
   const handleCopyCode = () => {
-    if (!code) return;
-    navigator.clipboard.writeText(code);
+    if (!codeData?.oneTimeCode) return;
+    navigator.clipboard.writeText(codeData.oneTimeCode);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
@@ -53,8 +80,14 @@ export default function MyPage() {
               社員番号: <span className="font-mono font-bold text-slate-700">00400611</span> │ 所属: HITOWAキッズライフ 恵比寿保育園
             </p>
           </div>
-          <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold">
-            ⚠️ LINE未連携
+          <span
+            className={`px-3 py-1 border rounded-lg text-xs font-bold ${
+              isLinked
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}
+          >
+            {isLinked ? '✅ LINE連携済み' : '⚠️ LINE未連携'}
           </span>
         </div>
 
@@ -98,7 +131,13 @@ export default function MyPage() {
                 🛡️ あなたの6桁連携ワンタイムコード
               </h2>
 
-              {!code ? (
+              {isLinked ? (
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center w-full max-w-xs space-y-1">
+                  <div className="text-2xl">✅</div>
+                  <h3 className="font-bold text-emerald-800 text-sm">連携が完了しました！</h3>
+                  <p className="text-emerald-600 text-[11px]">ポータルからの通知がLINEに配信されます。</p>
+                </div>
+              ) : !codeData ? (
                 <button
                   onClick={handleGenerateCode}
                   disabled={loading}
@@ -108,9 +147,13 @@ export default function MyPage() {
                 </button>
               ) : (
                 <div className="space-y-3 w-full max-w-xs">
+                  <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-[11px] font-bold animate-pulse inline-block">
+                    🔄 LINEからの送信を待っています...
+                  </div>
+
                   <div className="bg-white px-5 py-2.5 rounded-xl border-2 border-indigo-600 shadow-inner flex items-center justify-between">
                     <span className="font-mono font-extrabold text-2xl tracking-[0.2em] text-indigo-900">
-                      {code}
+                      {codeData.oneTimeCode}
                     </span>
                     <button
                       onClick={handleCopyCode}
@@ -121,17 +164,24 @@ export default function MyPage() {
                   </div>
 
                   <p className="text-[11px] text-amber-700 font-semibold">
-                    ⏳ 有効期限: 発行から10分間
+                    ⏳ 有効期限: {new Date(codeData.expiresAt).toLocaleTimeString()} まで
                   </p>
 
                   <a
-                    href="https://line.me/ti/p/"
+                    href={codeData.lineAddFriendUrl || "https://line.me/ti/p/"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-2.5 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold rounded-lg text-xs transition shadow-sm block text-center"
                   >
                     💬 公式LINEを開いてコードを送信する ↗
                   </a>
+
+                  {codeData.lineAddFriendUrl && (
+                    <div className="pt-2 flex flex-col items-center">
+                      <QRCodeSVG value={codeData.lineAddFriendUrl} size={120} />
+                      <span className="text-[10px] text-slate-400 mt-1">QRコードから友達追加</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
