@@ -2,21 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function MyPage() {
-  // SAMLから取得された想定のユーザープロフィール情報
-  const userProfile = {
-    portalUserId: "00400611",
-    name: "姓 名",
-    email: "mei-sei@hitowa.com",
-    companyCode: "100",
-    companyName: "株式会社HITOWA",
-    divisionName: "情報システム部企画統制課",
-    officeCode: "1",
-    positionCode: "1570",
-    employmentCode: "1",
-  };
+  const userProfile = DEMO_USER_PROFILE;
 
   const [loading, setLoading] = useState(false);
   const [codeData, setCodeData] = useState<{
@@ -99,6 +89,7 @@ export default function MyPage() {
             <p className="text-xs text-slate-500 mt-1">
               社員番号: <span className="font-mono font-bold text-slate-700">{userProfile.portalUserId}</span>
               │ 所属: <span className="font-semibold text-slate-700">{userProfile.divisionName}</span>
+              │ 事業所: <span className="font-semibold text-slate-700">{userProfile.officeCode}</span>
               │ Mail: <span className="text-slate-600">{userProfile.email}</span>
             </p>
           </div>
