@@ -5,6 +5,19 @@ import Header from '@/components/Header';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function MyPage() {
+  // SAMLから取得された想定のユーザープロフィール情報
+  const userProfile = {
+    portalUserId: "00400611",
+    name: "姓 名",
+    email: "mei-sei@hitowa.com",
+    companyCode: "100",
+    companyName: "株式会社HITOWA",
+    divisionName: "情報システム部企画統制課",
+    officeCode: "1",
+    positionCode: "1570",
+    employmentCode: "1",
+  };
+
   const [loading, setLoading] = useState(false);
   const [codeData, setCodeData] = useState<{
     oneTimeCode: string;
@@ -14,11 +27,20 @@ export default function MyPage() {
   const [isLinked, setIsLinked] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
-  // ワンタイムコード発行処理（本番用 API 呼び出し）
   const handleGenerateCode = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/line/issue-code', { method: 'POST' });
+      const res = await fetch('/api/line/issue-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userProfile.portalUserId,
+        },
+        body: JSON.stringify({
+          portalUserId: userProfile.portalUserId,
+          attributes: userProfile,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
         setCodeData(data);
@@ -33,7 +55,6 @@ export default function MyPage() {
     }
   };
 
-  // コード送信後のポーリング自動検出
   useEffect(() => {
     if (!codeData || isLinked) return;
 
@@ -54,7 +75,6 @@ export default function MyPage() {
     return () => clearInterval(intervalId);
   }, [codeData, isLinked]);
 
-  // クリップボードコピー
   const handleCopyCode = () => {
     if (!codeData?.oneTimeCode) return;
     navigator.clipboard.writeText(codeData.oneTimeCode);
@@ -67,17 +87,19 @@ export default function MyPage() {
       <Header />
 
       <main className="max-w-4xl mx-auto w-full flex-1 p-4 sm:p-6 space-y-5">
-        {/* プロフィールカード */}
+        {/* プロフィールカード (SAML情報表示) */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-slate-900">山田 太郎</h1>
+              <h1 className="text-base font-bold text-slate-900">{userProfile.name}</h1>
               <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold text-[11px] rounded border border-indigo-100">
-                現場社員
+                {userProfile.companyName}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              社員番号: <span className="font-mono font-bold text-slate-700">00400611</span> │ 所属: HITOWAキッズライフ 恵比寿保育園
+              社員番号: <span className="font-mono font-bold text-slate-700">{userProfile.portalUserId}</span>
+              │ 所属: <span className="font-semibold text-slate-700">{userProfile.divisionName}</span>
+              │ Mail: <span className="text-slate-600">{userProfile.email}</span>
             </p>
           </div>
           <span
@@ -106,7 +128,6 @@ export default function MyPage() {
               以下の手順で6桁コードを発行し、LINE公式アカウントのトーク画面へ送信してください。
             </p>
 
-            {/* 手順ステップ */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
                 <div className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-[10px]">1</div>
@@ -125,7 +146,6 @@ export default function MyPage() {
               </div>
             </div>
 
-            {/* コード発行・操作エリア */}
             <div className="bg-indigo-50/70 rounded-xl p-5 border border-indigo-100 flex flex-col items-center justify-center text-center space-y-3">
               <h2 className="text-xs font-bold text-indigo-950">
                 🛡️ あなたの6桁連携ワンタイムコード
