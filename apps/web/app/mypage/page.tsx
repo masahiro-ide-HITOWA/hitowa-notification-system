@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import { MypageProfileCard } from '@/components/mypage-profile-card';
 import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -77,32 +78,7 @@ export default function MyPage() {
       <Header />
 
       <main className="max-w-4xl mx-auto w-full flex-1 p-4 sm:p-6 space-y-5">
-        {/* プロフィールカード (SAML情報表示) */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-slate-900">{userProfile.name}</h1>
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-semibold text-[11px] rounded border border-indigo-100">
-                {userProfile.companyName}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              社員番号: <span className="font-mono font-bold text-slate-700">{userProfile.portalUserId}</span>
-              │ 所属: <span className="font-semibold text-slate-700">{userProfile.divisionName}</span>
-              │ 事業所: <span className="font-semibold text-slate-700">{userProfile.officeCode}</span>
-              │ Mail: <span className="text-slate-600">{userProfile.email}</span>
-            </p>
-          </div>
-          <span
-            className={`px-3 py-1 border rounded-lg text-xs font-bold ${
-              isLinked
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200'
-            }`}
-          >
-            {isLinked ? '✅ LINE連携済み' : '⚠️ LINE未連携'}
-          </span>
-        </div>
+        <MypageProfileCard userProfile={userProfile} isLinked={isLinked} />
 
         {/* LINE連携設定カード */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
