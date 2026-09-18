@@ -88,6 +88,13 @@ export function countUnreadNotifications(items: NotificationItem[]): number {
   return items.filter((item) => !item.isRead).length;
 }
 
+export function formatUnreadBadge(count: number): string | null {
+  if (!Number.isInteger(count) || count < 1) {
+    return null;
+  }
+  return String(count);
+}
+
 function isNotificationSystemName(value: unknown): value is NotificationSystemName {
   return (
     value === "カオナビ" ||

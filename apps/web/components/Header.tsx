@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canUseWebMail } from "@/lib/mail-permission";
+import { formatUnreadBadge } from "@/lib/notifications";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { useUnreadNotificationCount } from "@/lib/use-unread-notification-count";
 
 function navClass(active: boolean): string {
   return `px-3 py-1.5 rounded-lg font-semibold transition ${
@@ -43,6 +45,8 @@ function WebMailNavButton({ pathname }: { pathname: string }) {
 
 export default function Header() {
   const pathname = usePathname();
+  const unreadCount = useUnreadNotificationCount(DEMO_USER_PROFILE.portalUserId);
+  const unreadBadge = formatUnreadBadge(unreadCount);
 
   return (
     <header className="bg-slate-900 text-white p-3 sticky top-0 z-40 shadow-md">
@@ -55,8 +59,16 @@ export default function Header() {
           </Link>
         </div>
         <nav className="flex items-center gap-2 text-xs">
-          <Link href="/notifications" className={navClass(pathname === "/notifications")}>
+          <Link
+            href="/notifications"
+            className={`${navClass(pathname === "/notifications")} inline-flex items-center gap-1.5`}
+          >
             マイ通知
+            {unreadBadge ? (
+              <span className="bg-red-500 text-white rounded-full px-2 py-0.5 text-xs">
+                {unreadBadge}
+              </span>
+            ) : null}
           </Link>
           <WebMailNavButton pathname={pathname} />
           <Link href="/mypage" className={navClass(pathname === "/mypage")}>

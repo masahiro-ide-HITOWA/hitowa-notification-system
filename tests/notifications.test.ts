@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   countUnreadNotifications,
+  formatUnreadBadge,
   getNotificationsForUser,
   notificationsFromDynamoItems,
   parseNotificationList,
@@ -26,6 +27,9 @@ describe("notifications", () => {
   it("counts unread items", () => {
     const items = getNotificationsForUser("00400611");
     expect(countUnreadNotifications(items)).toBe(2);
+    expect(formatUnreadBadge(2)).toBe("2");
+    expect(formatUnreadBadge(0)).toBeNull();
+    expect(formatUnreadBadge(-1)).toBeNull();
   });
 
   it("prefers x-user-id over the query parameter", () => {

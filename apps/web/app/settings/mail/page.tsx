@@ -1,6 +1,6 @@
 import Header from "@/components/Header";
 import { MailConfigForm } from "@/components/MailConfigForm";
-import { canUseWebMail } from "@/lib/mail-permission";
+import { canUseWebMail, HQ_WEB_MAIL_EXCLUDED_NOTE } from "@/lib/mail-permission";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 
 export default function MailSettingsPage() {
@@ -22,7 +22,7 @@ export default function MailSettingsPage() {
         ) : (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-amber-800">
-              ※本部社員はWebメール機能の対象外です
+              {HQ_WEB_MAIL_EXCLUDED_NOTE}
             </p>
             <p className="text-xs text-amber-700 mt-1">
               現在のアカウント（{user.email}）ではメール接続設定を利用できません。
