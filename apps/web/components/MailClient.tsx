@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { MailComposeModal, type ComposeDraft } from "@/components/MailComposeModal";
 import { MailFolderPane } from "@/components/MailFolderPane";
 import { MailListPane } from "@/components/MailListPane";
 import { MailPreviewPane } from "@/components/MailPreviewPane";
 import { CONFIG_MISSING_MESSAGE, type MailDetail, type MailListItem } from "@/lib/mail-imap-model";
+import { extractEmailAddress, quotedForwardBody, withSubjectPrefix } from "@/lib/mail-smtp-model";
 
 interface MailClientProps {
   portalUserId: string;
@@ -21,6 +23,8 @@ export function MailClient({ portalUserId, email }: MailClientProps) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [configMissing, setConfigMissing] = useState(false);
+  const [draft, setDraft] = useState<ComposeDraft | null>(null);
+  const [toast, setToast] = useState("");
 
   const headers = useCallback(
     () => ({
@@ -125,19 +129,65 @@ export function MailClient({ portalUserId, email }: MailClientProps) {
     );
   }
 
+  const openReply = (item: MailDetail) => {
+    setDraft({
+      mode: "reply",
+      to: extractEmailAddress(item.from),
+      cc: "",
+      subject: withSubjectPrefix(item.subject, "Re:"),
+      body: "",
+      replyToUid: item.uid,
+    });
+  };
+
+  const openForward = (item: MailDetail) => {
+    setDraft({
+      mode: "forward",
+      to: "",
+      cc: "",
+      subject: withSubjectPrefix(item.subject, "Fwd:"),
+      body: quotedForwardBody(item),
+      replyToUid: item.uid,
+    });
+  };
+
+  const handleSent = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 4000);
+  };
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      {toast ? <p className="px-3 py-2 text-xs text-emerald-800 bg-emerald-50 font-semibold">{toast}</p> : null}
       {error ? <p className="px-3 py-2 text-xs text-rose-600 bg-rose-50">{error}</p> : null}
       <div className="grid grid-cols-1 md:grid-cols-[20%_35%_45%] min-h-[520px] divide-y md:divide-y-0 md:divide-x divide-slate-100">
-        <MailFolderPane selected={folder} onSelect={setFolder} />
+        <MailFolderPane
+          selected={folder}
+          onSelect={setFolder}
+          onCompose={() => setDraft({ mode: "new", to: "", cc: "", subject: "", body: "" })}
+        />
         <MailListPane
           messages={messages}
           selectedUid={selectedUid}
           onSelect={setSelectedUid}
           loading={listLoading}
         />
-        <MailPreviewPane detail={detail} loading={detailLoading} />
+        <MailPreviewPane
+          detail={detail}
+          loading={detailLoading}
+          onReply={openReply}
+          onForward={openForward}
+        />
       </div>
+      {draft ? (
+        <MailComposeModal
+          draft={draft}
+          portalUserId={portalUserId}
+          email={email}
+          onClose={() => setDraft(null)}
+          onSent={handleSent}
+        />
+      ) : null}
     </div>
   );
 }
