@@ -16,7 +16,11 @@ export default function MailPage() {
           <p className="text-xs text-slate-500 mt-1">KAGOYA 等の現場メールを IMAP で閲覧します。</p>
         </div>
         {enabled ? (
-          <MailClient portalUserId={user.portalUserId} email={user.email} />
+          <MailClient
+            portalUserId={user.portalUserId}
+            email={user.email}
+            displayName={user.name}
+          />
         ) : (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-amber-800">※本部社員はWebメール機能の対象外です</p>

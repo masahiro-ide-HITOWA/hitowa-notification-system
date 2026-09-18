@@ -14,11 +14,11 @@ export interface PortalUserProfile extends SamlUserAttributes {
 }
 
 export const FALLBACK_SAML_ATTRIBUTES: SamlUserAttributes = {
-  name: "姓 名",
-  email: "mei-sei@hitowa.com",
+  name: "井出征希テスト",
+  email: "masahiro-ide@gr.hitowa.com",
   companyCode: "100",
   companyName: "株式会社HITOWA",
-  divisionName: "情報システム部企画統制課",
+  divisionName: "イリーゼ品川",
   officeCode: "1",
   positionCode: "1570",
   employmentCode: "1",

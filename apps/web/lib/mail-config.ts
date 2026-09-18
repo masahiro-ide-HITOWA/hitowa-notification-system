@@ -1,11 +1,19 @@
 export const PASSWORD_MASK = "********";
 
 export const DEFAULT_MAIL_HOSTS = {
-  imapHost: "imap.kagoya.net",
-  imapPort: 993,
-  smtpHost: "smtp.kagoya.net",
-  smtpPort: 465,
+  imapHost: "mss191.kagoya.net",
+  imapPort: 143,
+  smtpHost: "mss191.kagoya.net",
+  smtpPort: 587,
 } as const;
+
+export function isImapSecure(port: number): boolean {
+  return port !== 143;
+}
+
+export function isSmtpSecure(port: number): boolean {
+  return port !== 587;
+}
 
 export interface MailConfigInput {
   imapHost: string;

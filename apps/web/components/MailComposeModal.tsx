@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { SendMailMode } from "@/lib/mail-smtp-model";
+import { MISSING_TO_MESSAGE } from "@/lib/mail-smtp-model";
 
 export interface ComposeDraft {
   mode: SendMailMode;
@@ -16,6 +17,7 @@ interface MailComposeModalProps {
   draft: ComposeDraft;
   portalUserId: string;
   email: string;
+  displayName: string;
   onClose: () => void;
   onSent: (message: string) => void;
 }
@@ -30,6 +32,7 @@ export function MailComposeModal({
   draft,
   portalUserId,
   email,
+  displayName,
   onClose,
   onSent,
 }: MailComposeModalProps) {
@@ -42,9 +45,15 @@ export function MailComposeModal({
 
   const fieldClass =
     "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none";
+  const canSend = to.trim() !== "" && subject.trim() !== "" && body.trim() !== "" && !sending;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const trimmedTo = to.trim();
+    if (!trimmedTo) {
+      setError(MISSING_TO_MESSAGE);
+      return;
+    }
     setSending(true);
     setError("");
     try {
@@ -58,9 +67,12 @@ export function MailComposeModal({
         body: JSON.stringify({
           portalUserId,
           email,
-          to,
-          cc,
-          subject,
+          fromName: displayName,
+          fromEmail: email,
+          to: trimmedTo,
+          cc: cc.trim() || undefined,
+          bcc: undefined,
+          subject: subject.trim(),
           body,
           mode: draft.mode,
           replyToUid: draft.replyToUid,
@@ -119,7 +131,7 @@ export function MailComposeModal({
           </button>
           <button
             type="submit"
-            disabled={sending}
+            disabled={!canSend}
             className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold disabled:opacity-50"
           >
             {sending ? "送信中..." : "送信"}

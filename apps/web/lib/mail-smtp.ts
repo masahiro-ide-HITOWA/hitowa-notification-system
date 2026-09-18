@@ -1,23 +1,27 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import type { MailConfigInput } from "@/lib/mail-config";
+import { isSmtpSecure, type MailConfigInput } from "@/lib/mail-config";
 import { getMailConfigForConnection } from "@/lib/mail-config-store";
 import {
   CONFIG_MISSING_MESSAGE,
 } from "@/lib/mail-imap-model";
 import {
+  MISSING_TO_MESSAGE,
   MailSmtpError,
   classifySmtpFailure,
+  parseRecipientList,
+  resolveSenderFrom,
   type SendMailPayload,
   type SendMailResult,
 } from "@/lib/mail-smtp-model";
 
 export interface SmtpTransportLike {
   sendMail(options: {
-    from: string;
-    to: string;
-    cc?: string;
-    bcc?: string;
+    from: { name: string; address: string };
+    envelope?: { from: string; to: string[] };
+    to: string | string[];
+    cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     text: string;
   }): Promise<{ messageId?: string }>;
@@ -32,7 +36,7 @@ function defaultCreateTransport(config: MailConfigInput): SmtpTransportLike {
   const transporter: Transporter = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
-    secure: config.smtpPort === 465,
+    secure: isSmtpSecure(config.smtpPort),
     auth: {
       user: config.username,
       pass: config.password,
@@ -51,7 +55,11 @@ export async function sendMail(
   payload: SendMailPayload,
   deps: MailSmtpDeps = defaultDeps
 ): Promise<SendMailResult> {
-  if (!payload.to.trim() || !payload.subject.trim() || !payload.body.trim()) {
+  const toList = parseRecipientList(payload.to);
+  if (toList.length === 0) {
+    throw new MailSmtpError("VALIDATION_FAILED", MISSING_TO_MESSAGE);
+  }
+  if (!payload.subject.trim() || !payload.body.trim()) {
     throw new MailSmtpError("VALIDATION_FAILED", "宛先・件名・本文は必須です");
   }
 
@@ -61,12 +69,24 @@ export async function sendMail(
   }
 
   const transport = deps.createTransport(config);
+  const userEmail =
+    payload.fromEmail && payload.fromEmail.includes("@")
+      ? payload.fromEmail
+      : config.username;
+  const from = resolveSenderFrom(payload.fromName, userEmail);
+  const ccList = parseRecipientList(payload.cc);
+  const bccList = parseRecipientList(payload.bcc);
+
   try {
     const info = await transport.sendMail({
-      from: config.username,
-      to: payload.to,
-      cc: payload.cc,
-      bcc: payload.bcc,
+      from,
+      to: toList,
+      cc: ccList.length > 0 ? ccList : undefined,
+      bcc: bccList.length > 0 ? bccList : undefined,
+      envelope: {
+        from: from.address,
+        to: [...toList, ...ccList, ...bccList],
+      },
       subject: payload.subject,
       text: payload.body,
     });

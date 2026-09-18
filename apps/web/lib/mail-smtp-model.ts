@@ -28,6 +28,58 @@ export interface SendMailPayload {
   body: string;
   replyToUid?: number;
   mode?: SendMailMode;
+  fromName?: string;
+  fromEmail?: string;
+}
+
+export interface MailFromHeader {
+  name: string;
+  address: string;
+}
+
+export function resolveDisplayName(displayName: string | undefined, userEmail: string): string {
+  const trimmed = displayName?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  const at = userEmail.indexOf("@");
+  return at > 0 ? userEmail.slice(0, at) : userEmail;
+}
+
+export function resolveSenderFrom(
+  displayName: string | undefined,
+  userEmail: string
+): MailFromHeader {
+  return {
+    name: resolveDisplayName(displayName, userEmail),
+    address: userEmail,
+  };
+}
+
+export const MISSING_TO_MESSAGE = "宛先(to)が入力されていません";
+
+export function parseRecipientList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => parseRecipientList(item));
+  }
+  if (typeof value !== "string" && typeof value !== "number") {
+    return [];
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+}
+
+export function readTrimmedTo(body: unknown): string {
+  if (!isRecord(body)) {
+    return "";
+  }
+  return String(body.to ?? "").trim();
 }
 
 export interface SendMailResult {
@@ -52,7 +104,8 @@ export function parseSendMailPayload(body: unknown): SendMailPayload | null {
   if (!isRecord(body)) {
     return null;
   }
-  const to = readOptionalString(body.to);
+  const toList = parseRecipientList(body.to);
+  const to = toList.join(", ");
   const subject = readOptionalString(body.subject);
   const text = readOptionalString(body.body);
   if (!to || !subject || !text) {
@@ -73,6 +126,8 @@ export function parseSendMailPayload(body: unknown): SendMailPayload | null {
     body: text,
     replyToUid,
     mode: parsedMode ?? "new",
+    fromName: readOptionalString(body.fromName),
+    fromEmail: readOptionalString(body.fromEmail) ?? readOptionalString(body.email),
   };
 }
 

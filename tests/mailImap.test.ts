@@ -13,10 +13,10 @@ import type { MailConfigInput } from "../apps/web/lib/mail-config";
 
 const sampleConfig: MailConfigInput & { portalUserId: string } = {
   portalUserId: "00400611",
-  imapHost: "imap.kagoya.net",
-  imapPort: 993,
-  smtpHost: "smtp.kagoya.net",
-  smtpPort: 465,
+  imapHost: "mss191.kagoya.net",
+  imapPort: 143,
+  smtpHost: "mss191.kagoya.net",
+  smtpPort: 587,
   username: "field@kagoya.jp",
   password: "secret",
 };

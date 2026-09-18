@@ -3,20 +3,25 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_MISSING_MESSAGE } from "../apps/web/lib/mail-imap-model";
 import { sendMail } from "../apps/web/lib/mail-smtp";
 import {
+  MISSING_TO_MESSAGE,
   classifySmtpFailure,
   extractEmailAddress,
+  parseRecipientList,
   parseSendMailPayload,
   quotedForwardBody,
+  readTrimmedTo,
+  resolveDisplayName,
+  resolveSenderFrom,
   withSubjectPrefix,
 } from "../apps/web/lib/mail-smtp-model";
 import type { MailConfigInput } from "../apps/web/lib/mail-config";
 
 const sampleConfig: MailConfigInput & { portalUserId: string } = {
   portalUserId: "00400611",
-  imapHost: "imap.kagoya.net",
-  imapPort: 993,
-  smtpHost: "smtp.kagoya.net",
-  smtpPort: 465,
+  imapHost: "mss191.kagoya.net",
+  imapPort: 143,
+  smtpHost: "mss191.kagoya.net",
+  smtpPort: 587,
   username: "field@kagoya.jp",
   password: "secret",
 };
@@ -35,6 +40,14 @@ describe("mail-smtp-model", () => {
     expect(withSubjectPrefix("評価シート", "Re:")).toBe("Re: 評価シート");
     expect(withSubjectPrefix("Re: 評価シート", "Re:")).toBe("Re: 評価シート");
     expect(extractEmailAddress("人事 <hr@example.com>")).toBe("hr@example.com");
+    expect(resolveDisplayName("井出征希テスト", "masahiro-ide@gr.hitowa.com")).toBe(
+      "井出征希テスト"
+    );
+    expect(resolveDisplayName(undefined, "masahiro-ide@gr.hitowa.com")).toBe("masahiro-ide");
+    expect(resolveSenderFrom("井出征希テスト", "masahiro-ide@gr.hitowa.com")).toEqual({
+      name: "井出征希テスト",
+      address: "masahiro-ide@gr.hitowa.com",
+    });
   });
 
   it("builds a quoted forward body", () => {
@@ -59,16 +72,35 @@ describe("mail-smtp-model", () => {
 });
 
 describe("sendMail", () => {
-  it("sends through a mock SMTP transport", async () => {
-    const sent: Array<{ to: string; subject: string; text: string }> = [];
+  it("sends through a mock SMTP transport with a named From header", async () => {
+    const sent: Array<{
+      from: { name: string; address: string };
+      envelope?: { from: string; to: string[] };
+      to: string | string[];
+      subject: string;
+      text: string;
+    }> = [];
     const result = await sendMail(
       "00400611",
-      { to: "boss@example.com", subject: "報告", body: "完了しました", mode: "new" },
+      {
+        to: "boss@example.com",
+        subject: "報告",
+        body: "完了しました",
+        mode: "new",
+        fromName: "井出征希テスト",
+        fromEmail: "masahiro-ide@gr.hitowa.com",
+      },
       {
         loadConfig: async () => sampleConfig,
         createTransport: () => ({
           sendMail: async (options) => {
-            sent.push({ to: options.to, subject: options.subject, text: options.text });
+            sent.push({
+              from: options.from,
+              envelope: options.envelope,
+              to: options.to,
+              subject: options.subject,
+              text: options.text,
+            });
             return { messageId: "<id@smtp>" };
           },
         }),
@@ -80,9 +112,53 @@ describe("sendMail", () => {
       messageId: "<id@smtp>",
     });
     expect(sent[0]).toEqual({
-      to: "boss@example.com",
+      from: { name: "井出征希テスト", address: "masahiro-ide@gr.hitowa.com" },
+      envelope: {
+        from: "masahiro-ide@gr.hitowa.com",
+        to: ["boss@example.com"],
+      },
+      to: ["boss@example.com"],
       subject: "報告",
       text: "完了しました",
+    });
+  });
+
+  it("parses comma-separated recipients into an array", async () => {
+    let toValue: string | string[] | undefined;
+    await sendMail(
+      "00400611",
+      { to: "a@example.com, b@example.com", subject: "x", body: "y" },
+      {
+        loadConfig: async () => sampleConfig,
+        createTransport: () => ({
+          sendMail: async (options) => {
+            toValue = options.to;
+            return { messageId: "<id@smtp>" };
+          },
+        }),
+      }
+    );
+    expect(toValue).toEqual(["a@example.com", "b@example.com"]);
+  });
+
+  it("rejects an empty to address before calling SMTP", async () => {
+    expect(readTrimmedTo({ to: "   " })).toBe("");
+    expect(parseRecipientList("")).toEqual([]);
+    expect(parseSendMailPayload({ to: "", subject: "x", body: "y" })).toBeNull();
+    await expect(
+      sendMail(
+        "00400611",
+        { to: "  ", subject: "x", body: "y" },
+        {
+          loadConfig: async () => sampleConfig,
+          createTransport: () => ({
+            sendMail: async () => ({ messageId: "unused" }),
+          }),
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      message: MISSING_TO_MESSAGE,
     });
   });
 

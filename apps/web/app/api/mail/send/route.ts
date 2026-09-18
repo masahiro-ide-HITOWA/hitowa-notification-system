@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { parseMailSettingsActor } from "@/lib/mail-config";
 import { mailForbiddenIfHq } from "@/lib/mail-api";
 import { sendMail } from "@/lib/mail-smtp";
-import { isMailSmtpError, parseSendMailPayload } from "@/lib/mail-smtp-model";
+import {
+  MISSING_TO_MESSAGE,
+  isMailSmtpError,
+  parseSendMailPayload,
+  readTrimmedTo,
+} from "@/lib/mail-smtp-model";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 
 export async function POST(request: Request) {
@@ -29,6 +34,13 @@ export async function POST(request: Request) {
     return forbidden;
   }
 
+  if (!readTrimmedTo(body)) {
+    return NextResponse.json(
+      { success: false, code: "VALIDATION_FAILED", message: MISSING_TO_MESSAGE },
+      { status: 400 }
+    );
+  }
+
   const payload = parseSendMailPayload(body);
   if (!payload) {
     return NextResponse.json(
@@ -38,7 +50,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await sendMail(actor.portalUserId, payload);
+    const result = await sendMail(actor.portalUserId, {
+      ...payload,
+      fromName: payload.fromName ?? DEMO_USER_PROFILE.name,
+      fromEmail: payload.fromEmail ?? actor.email,
+    });
     return NextResponse.json(result);
   } catch (error) {
     if (isMailSmtpError(error)) {

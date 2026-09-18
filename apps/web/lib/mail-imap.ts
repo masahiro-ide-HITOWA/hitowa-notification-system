@@ -1,6 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import type { MailConfigInput } from "@/lib/mail-config";
+import { isImapSecure, type MailConfigInput } from "@/lib/mail-config";
 import { getMailConfigForConnection } from "@/lib/mail-config-store";
 import {
   CONFIG_MISSING_MESSAGE,
@@ -42,7 +42,8 @@ function defaultCreateClient(config: MailConfigInput): ImapClientLike {
   const client = new ImapFlow({
     host: config.imapHost,
     port: config.imapPort,
-    secure: config.imapPort === 993,
+    secure: isImapSecure(config.imapPort),
+    connectionTimeout: 30000,
     auth: { user: config.username, pass: config.password },
     logger: false,
   });

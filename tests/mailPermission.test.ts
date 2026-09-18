@@ -11,6 +11,7 @@ describe("canUseWebMail", () => {
   it("returns true for other domains such as KAGOYA field staff", () => {
     expect(canUseWebMail("staff@kagoya.jp")).toBe(true);
     expect(canUseWebMail("user@example.com")).toBe(true);
+    expect(canUseWebMail("masahiro-ide@gr.hitowa.com")).toBe(true);
   });
 
   it("returns false when the email is missing or invalid", () => {

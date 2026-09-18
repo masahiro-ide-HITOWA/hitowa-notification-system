@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MAIL_HOSTS,
   PASSWORD_MASK,
+  isImapSecure,
+  isSmtpSecure,
   parseMailConfigInput,
   parseMailSettingsActor,
   toPublicMailConfig,
@@ -25,10 +27,10 @@ function memoryStore(): MailConfigStoreDeps & { items: Map<string, Record<string
 }
 
 const sampleInput = {
-  imapHost: "imap.kagoya.net",
-  imapPort: 993,
-  smtpHost: "smtp.kagoya.net",
-  smtpPort: 465,
+  imapHost: "mss191.kagoya.net",
+  imapPort: 143,
+  smtpHost: "mss191.kagoya.net",
+  smtpPort: 587,
   username: "field@kagoya.jp",
   password: "plain-secret",
 };
@@ -49,10 +51,10 @@ describe("parseMailSettingsActor / parseMailConfigInput", () => {
     expect(
       parseMailConfigInput({
         ...sampleInput,
-        imapPort: "993",
+        imapPort: "143",
         smtpPort: "587",
       })
-    ).toEqual({ ...sampleInput, imapPort: 993, smtpPort: 587 });
+    ).toEqual({ ...sampleInput, imapPort: 143, smtpPort: 587 });
   });
 });
 
@@ -81,12 +83,12 @@ describe("saveMailConfig / getMailConfig", () => {
 
     await saveMailConfig(
       "00400611",
-      { ...sampleInput, password: PASSWORD_MASK, smtpPort: 587 },
+      { ...sampleInput, password: PASSWORD_MASK, smtpPort: 465 },
       deps
     );
 
     expect(deps.items.get("00400611")?.passwordEncrypted).toBe(previous);
-    expect(deps.items.get("00400611")?.smtpPort).toBe(587);
+    expect(deps.items.get("00400611")?.smtpPort).toBe(465);
   });
 
   it("decrypts only for internal connection use", async () => {
@@ -105,21 +107,39 @@ describe("saveMailConfig / getMailConfig", () => {
       hasPassword: false,
       passwordMasked: "",
     });
+    expect(DEFAULT_MAIL_HOSTS).toEqual({
+      imapHost: "mss191.kagoya.net",
+      imapPort: 143,
+      smtpHost: "mss191.kagoya.net",
+      smtpPort: 587,
+    });
   });
 });
 
 describe("toPublicMailConfig", () => {
   it("never exposes the encrypted secret", () => {
     const publicConfig = toPublicMailConfig("00400611", {
-      imapHost: "imap.kagoya.net",
-      imapPort: 993,
-      smtpHost: "smtp.kagoya.net",
-      smtpPort: 465,
+      imapHost: "mss191.kagoya.net",
+      imapPort: 143,
+      smtpHost: "mss191.kagoya.net",
+      smtpPort: 587,
       username: "field@kagoya.jp",
       passwordEncrypted: "iv.tag.cipher",
       updatedAt: "2026-09-18T03:00:00.000Z",
     });
     expect(publicConfig.passwordMasked).toBe(PASSWORD_MASK);
     expect(publicConfig).not.toHaveProperty("passwordEncrypted");
+  });
+});
+
+describe("IMAP/SMTP secure flags", () => {
+  it("uses STARTTLS on IMAP 143 and implicit TLS on 993", () => {
+    expect(isImapSecure(143)).toBe(false);
+    expect(isImapSecure(993)).toBe(true);
+  });
+
+  it("uses STARTTLS on SMTP 587 and implicit TLS on 465", () => {
+    expect(isSmtpSecure(587)).toBe(false);
+    expect(isSmtpSecure(465)).toBe(true);
   });
 });

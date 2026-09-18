@@ -12,9 +12,10 @@ import { extractEmailAddress, quotedForwardBody, withSubjectPrefix } from "@/lib
 interface MailClientProps {
   portalUserId: string;
   email: string;
+  displayName: string;
 }
 
-export function MailClient({ portalUserId, email }: MailClientProps) {
+export function MailClient({ portalUserId, email, displayName }: MailClientProps) {
   const [folder, setFolder] = useState("INBOX");
   const [messages, setMessages] = useState<MailListItem[]>([]);
   const [selectedUid, setSelectedUid] = useState<number | null>(null);
@@ -184,6 +185,7 @@ export function MailClient({ portalUserId, email }: MailClientProps) {
           draft={draft}
           portalUserId={portalUserId}
           email={email}
+          displayName={displayName}
           onClose={() => setDraft(null)}
           onSent={handleSent}
         />
