@@ -129,3 +129,25 @@ export function parseNotificationList(value: unknown): NotificationItem[] | null
   }
   return items;
 }
+
+export function sortNotificationsByCreatedAtDesc(
+  items: NotificationItem[]
+): NotificationItem[] {
+  return [...items].sort((a, b) => {
+    const aTime = Date.parse(a.createdAt);
+    const bTime = Date.parse(b.createdAt);
+    if (Number.isNaN(aTime) || Number.isNaN(bTime)) {
+      return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+    }
+    return bTime - aTime;
+  });
+}
+
+export function notificationsFromDynamoItems(
+  items: unknown[] | undefined
+): NotificationItem[] {
+  if (!items) {
+    return [];
+  }
+  return sortNotificationsByCreatedAtDesc(items.filter(isNotificationItem));
+}

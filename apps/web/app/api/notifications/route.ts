@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  getNotificationsForUser,
-  parseNotificationsPortalUserId,
-  type NotificationItem,
-} from "@/lib/notifications";
+import { loadNotificationsForUser } from "@/lib/notification-store";
+import { parseNotificationsPortalUserId } from "@/lib/notifications";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -19,6 +16,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const notifications: NotificationItem[] = getNotificationsForUser(portalUserId);
+  const notifications = await loadNotificationsForUser(portalUserId);
   return NextResponse.json(notifications);
 }

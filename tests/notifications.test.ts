@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   countUnreadNotifications,
   getNotificationsForUser,
+  notificationsFromDynamoItems,
   parseNotificationList,
   parseNotificationsPortalUserId,
+  sortNotificationsByCreatedAtDesc,
 } from "../apps/web/lib/notifications";
 
 describe("notifications", () => {
@@ -35,5 +37,40 @@ describe("notifications", () => {
     const parsed = parseNotificationList(getNotificationsForUser("00400611"));
     expect(parsed).not.toBeNull();
     expect(parsed?.[0]?.title).toContain("評価");
+  });
+
+  it("sorts DynamoDB items by createdAt descending", () => {
+    const items = notificationsFromDynamoItems([
+      {
+        id: "old",
+        portalUserId: "00400611",
+        systemName: "全社ポータル",
+        title: "古い",
+        body: "old",
+        isRead: true,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      },
+      {
+        id: "new",
+        portalUserId: "00400611",
+        systemName: "カオナビ",
+        title: "新しい",
+        body: "new",
+        isRead: false,
+        createdAt: "2026-09-18T00:00:00.000Z",
+      },
+      { skip: true },
+    ]);
+    expect(items.map((item) => item.id)).toEqual(["new", "old"]);
+  });
+
+  it("returns an empty list when DynamoDB has no matching items", () => {
+    expect(notificationsFromDynamoItems([])).toEqual([]);
+    expect(notificationsFromDynamoItems(undefined)).toEqual([]);
+  });
+
+  it("keeps mock inbox newest-first", () => {
+    const items = sortNotificationsByCreatedAtDesc(getNotificationsForUser("00400611"));
+    expect(items[0]?.createdAt >= (items[1]?.createdAt ?? "")).toBe(true);
   });
 });
