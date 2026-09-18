@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+import { MypageLinkedPanel } from '@/components/mypage-linked-panel';
+import { MypagePendingCodePanel } from '@/components/mypage-pending-code-panel';
 import { MypageProfileCard } from '@/components/mypage-profile-card';
 import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
-import { QRCodeSVG } from 'qrcode.react';
 
 export default function MyPage() {
   const userProfile = DEMO_USER_PROFILE;
@@ -17,6 +18,7 @@ export default function MyPage() {
   } | null>(null);
   const [isLinked, setIsLinked] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   const handleGenerateCode = async () => {
     setLoading(true);
@@ -73,6 +75,33 @@ export default function MyPage() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const handleUnlink = async () => {
+    if (!confirm('LINE連携を解除しますか？')) return;
+
+    setUnlinking(true);
+    try {
+      const res = await fetch('/api/line/unlink', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userProfile.portalUserId,
+        },
+        body: JSON.stringify({ portalUserId: userProfile.portalUserId }),
+      });
+      const data: { success: boolean; message?: string } = await res.json();
+      if (data.success) {
+        setIsLinked(false);
+        setCodeData(null);
+      } else {
+        alert('連携解除に失敗しました: ' + (data.message || ''));
+      }
+    } catch {
+      alert('予期せぬエラーが発生しました');
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   return (
     <div className="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-800">
       <Header />
@@ -119,11 +148,7 @@ export default function MyPage() {
               </h2>
 
               {isLinked ? (
-                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center w-full max-w-xs space-y-1">
-                  <div className="text-2xl">✅</div>
-                  <h3 className="font-bold text-emerald-800 text-sm">連携が完了しました！</h3>
-                  <p className="text-emerald-600 text-[11px]">ポータルからの通知がLINEに配信されます。</p>
-                </div>
+                <MypageLinkedPanel unlinking={unlinking} onUnlink={handleUnlink} />
               ) : !codeData ? (
                 <button
                   onClick={handleGenerateCode}
@@ -133,43 +158,11 @@ export default function MyPage() {
                   {loading ? '発行中...' : '📱 ワンタイム連携コードを発行する'}
                 </button>
               ) : (
-                <div className="space-y-3 w-full max-w-xs">
-                  <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-[11px] font-bold animate-pulse inline-block">
-                    🔄 LINEからの送信を待っています...
-                  </div>
-
-                  <div className="bg-white px-5 py-2.5 rounded-xl border-2 border-indigo-600 shadow-inner flex items-center justify-between">
-                    <span className="font-mono font-extrabold text-2xl tracking-[0.2em] text-indigo-900">
-                      {codeData.oneTimeCode}
-                    </span>
-                    <button
-                      onClick={handleCopyCode}
-                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-xs transition"
-                    >
-                      {isCopied ? 'コピー完了!' : 'コピー'}
-                    </button>
-                  </div>
-
-                  <p className="text-[11px] text-amber-700 font-semibold">
-                    ⏳ 有効期限: {new Date(codeData.expiresAt).toLocaleTimeString()} まで
-                  </p>
-
-                  <a
-                    href={codeData.lineAddFriendUrl || "https://line.me/ti/p/"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold rounded-lg text-xs transition shadow-sm block text-center"
-                  >
-                    💬 公式LINEを開いてコードを送信する ↗
-                  </a>
-
-                  {codeData.lineAddFriendUrl && (
-                    <div className="pt-2 flex flex-col items-center">
-                      <QRCodeSVG value={codeData.lineAddFriendUrl} size={120} />
-                      <span className="text-[10px] text-slate-400 mt-1">QRコードから友達追加</span>
-                    </div>
-                  )}
-                </div>
+                <MypagePendingCodePanel
+                  codeData={codeData}
+                  isCopied={isCopied}
+                  onCopy={handleCopyCode}
+                />
               )}
             </div>
           </div>
