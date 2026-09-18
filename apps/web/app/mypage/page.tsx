@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import { MypageLinkedPanel } from '@/components/mypage-linked-panel';
+import { MypageNotificationsLink } from '@/components/mypage-notifications-link';
 import { MypagePendingCodePanel } from '@/components/mypage-pending-code-panel';
 import { MypageProfileCard } from '@/components/mypage-profile-card';
 import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
@@ -108,6 +109,9 @@ export default function MyPage() {
 
       <main className="max-w-4xl mx-auto w-full flex-1 p-4 sm:p-6 space-y-5">
         <MypageProfileCard userProfile={userProfile} isLinked={isLinked} />
+        <div>
+          <MypageNotificationsLink portalUserId={userProfile.portalUserId} />
+        </div>
 
         {/* LINE連携設定カード */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

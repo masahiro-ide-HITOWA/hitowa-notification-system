@@ -18,9 +18,9 @@ export default function Header() {
         </div>
         <nav className="flex items-center gap-2 text-xs">
           <Link
-            href="/"
+            href="/notifications"
             className={`px-3 py-1.5 rounded-lg font-semibold transition ${
-              pathname === '/'
+              pathname === '/notifications'
                 ? 'bg-indigo-600 text-white shadow'
                 : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
