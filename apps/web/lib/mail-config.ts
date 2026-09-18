@@ -1,18 +1,15 @@
-export const PASSWORD_MASK = "********";
+import { MAIL_SERVER_DEFAULTS } from "@/lib/mail-config-defaults";
 
-export const DEFAULT_MAIL_HOSTS = {
-  imapHost: "mss191.kagoya.net",
-  imapPort: 143,
-  smtpHost: "mss191.kagoya.net",
-  smtpPort: 587,
-} as const;
+export const PASSWORD_MASK = "********";
+export const PASSWORD_KEEP_PLACEHOLDER = "••••••••（変更しない場合は空欄のまま）";
+export const DEFAULT_MAIL_HOSTS = MAIL_SERVER_DEFAULTS;
 
 export function isImapSecure(port: number): boolean {
-  return port !== 143;
+  return port !== MAIL_SERVER_DEFAULTS.imapPort;
 }
 
 export function isSmtpSecure(port: number): boolean {
-  return port !== 587;
+  return port !== MAIL_SERVER_DEFAULTS.smtpPort;
 }
 
 export interface MailConfigInput {
@@ -50,22 +47,6 @@ function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-function readPort(value: unknown, fallback: number): number | null {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value.trim());
-    if (Number.isInteger(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  if (Number.isInteger(fallback) && fallback > 0) {
-    return fallback;
-  }
-  return null;
-}
-
 export function parseMailSettingsActor(
   body: unknown,
   headerUserId: string | null,
@@ -85,38 +66,60 @@ export function parseMailSettingsActor(
   return { portalUserId, email };
 }
 
+export function withFixedMailHosts(
+  username: string,
+  password: string
+): MailConfigInput {
+  return {
+    ...MAIL_SERVER_DEFAULTS,
+    username,
+    password,
+  };
+}
+
 export function parseMailConfigInput(body: unknown): MailConfigInput | null {
   if (!isRecord(body)) {
     return null;
   }
-  const imapHost = readNonEmptyString(body.imapHost);
-  const smtpHost = readNonEmptyString(body.smtpHost);
   const username = readNonEmptyString(body.username);
-  const imapPort = readPort(body.imapPort, DEFAULT_MAIL_HOSTS.imapPort);
-  const smtpPort = readPort(body.smtpPort, DEFAULT_MAIL_HOSTS.smtpPort);
-  const password =
-    typeof body.password === "string" ? body.password : "";
-  if (!imapHost || !smtpHost || !username || imapPort === null || smtpPort === null) {
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!username) {
     return null;
   }
-  return { imapHost, imapPort, smtpHost, smtpPort, username, password };
+  return withFixedMailHosts(username, password);
 }
 
 export function isMaskedOrEmptyPassword(password: string): boolean {
   return password.trim() === "" || password === PASSWORD_MASK;
 }
 
+export type MailPasswordUpdatePlan =
+  | { kind: "replace"; plaintext: string }
+  | { kind: "keep" }
+  | { kind: "missing" };
+
+export function planMailPasswordUpdate(
+  incomingPassword: string | undefined,
+  existingEncrypted: string | undefined
+): MailPasswordUpdatePlan {
+  const incoming = typeof incomingPassword === "string" ? incomingPassword : "";
+  if (!isMaskedOrEmptyPassword(incoming)) {
+    return { kind: "replace", plaintext: incoming.trim() };
+  }
+  if (typeof existingEncrypted === "string" && existingEncrypted.trim() !== "") {
+    return { kind: "keep" };
+  }
+  return { kind: "missing" };
+}
+
 export function toPublicMailConfig(
   portalUserId: string,
-  record: Pick<
-    MailConfigRecord,
-    "imapHost" | "imapPort" | "smtpHost" | "smtpPort" | "username" | "passwordEncrypted" | "updatedAt"
-  > | null
+  record: { username: string; passwordEncrypted: string; updatedAt: string } | null
 ): MailConfigPublic {
   if (!record) {
     return {
       portalUserId,
-      ...DEFAULT_MAIL_HOSTS,
+      ...MAIL_SERVER_DEFAULTS,
       username: "",
       passwordMasked: "",
       hasPassword: false,
@@ -126,10 +129,7 @@ export function toPublicMailConfig(
   const hasPassword = record.passwordEncrypted.trim() !== "";
   return {
     portalUserId,
-    imapHost: record.imapHost,
-    imapPort: record.imapPort,
-    smtpHost: record.smtpHost,
-    smtpPort: record.smtpPort,
+    ...MAIL_SERVER_DEFAULTS,
     username: record.username,
     passwordMasked: hasPassword ? PASSWORD_MASK : "",
     hasPassword,
@@ -138,10 +138,6 @@ export function toPublicMailConfig(
 }
 
 export function recordFromItem(item: Record<string, unknown> | null): {
-  imapHost: string;
-  imapPort: number;
-  smtpHost: string;
-  smtpPort: number;
   username: string;
   passwordEncrypted: string;
   updatedAt: string;
@@ -149,12 +145,8 @@ export function recordFromItem(item: Record<string, unknown> | null): {
   if (!item) {
     return null;
   }
-  const imapHost = readNonEmptyString(item.imapHost) ?? DEFAULT_MAIL_HOSTS.imapHost;
-  const smtpHost = readNonEmptyString(item.smtpHost) ?? DEFAULT_MAIL_HOSTS.smtpHost;
   const username = readNonEmptyString(item.username) ?? "";
-  const imapPort = readPort(item.imapPort, DEFAULT_MAIL_HOSTS.imapPort) ?? DEFAULT_MAIL_HOSTS.imapPort;
-  const smtpPort = readPort(item.smtpPort, DEFAULT_MAIL_HOSTS.smtpPort) ?? DEFAULT_MAIL_HOSTS.smtpPort;
   const passwordEncrypted = typeof item.passwordEncrypted === "string" ? item.passwordEncrypted : "";
   const updatedAt = typeof item.updatedAt === "string" ? item.updatedAt : "";
-  return { imapHost, imapPort, smtpHost, smtpPort, username, passwordEncrypted, updatedAt };
+  return { username, passwordEncrypted, updatedAt };
 }

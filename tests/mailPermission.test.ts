@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   FIELD_MAIL_SETTINGS_TITLE,
   HQ_WEB_MAIL_EXCLUDED_NOTE,
+  WEB_MAIL_NEEDS_SETTINGS_NOTE,
   canUseWebMail,
+  isMailAccountConfigured,
   mypageMailSettingsView,
+  resolveWebMailNavMode,
 } from "../apps/web/lib/mail-permission";
 
 describe("canUseWebMail", () => {
@@ -36,5 +39,22 @@ describe("mypage mail settings view", () => {
     expect(mypageMailSettingsView("masahiro-ide@gr.hitowa.com")).toBe("settings");
     expect(mypageMailSettingsView("staff@kagoya.jp")).toBe("settings");
     expect(FIELD_MAIL_SETTINGS_TITLE).toBe("📧 Webメール接続設定（KAGOYA等）");
+  });
+});
+
+describe("resolveWebMailNavMode", () => {
+  it("disables Web mail until account name and password are saved", () => {
+    expect(isMailAccountConfigured("", true)).toBe(false);
+    expect(isMailAccountConfigured("user@kagoya.jp", false)).toBe(false);
+    expect(isMailAccountConfigured("user@kagoya.jp", true)).toBe(true);
+    expect(resolveWebMailNavMode("masahiro-ide@gr.hitowa.com")).toBe("needs-settings");
+    expect(resolveWebMailNavMode("masahiro-ide@gr.hitowa.com", "user@kagoya.jp", true)).toBe(
+      "enabled"
+    );
+    expect(WEB_MAIL_NEEDS_SETTINGS_NOTE).toContain("設定画面");
+  });
+
+  it("keeps HQ employees excluded regardless of saved credentials", () => {
+    expect(resolveWebMailNavMode("mei-sei@hitowa.com", "user@kagoya.jp", true)).toBe("hq-excluded");
   });
 });

@@ -14,7 +14,7 @@ export default function MailSettingsPage() {
         <div>
           <h1 className="text-lg font-bold text-slate-900">メール接続設定</h1>
           <p className="text-xs text-slate-500 mt-1">
-            KAGOYA 等の現場メールを Web メーラーで利用するための IMAP/SMTP 接続情報です。
+            IMAP/SMTP の接続先はサーバー側で固定です。アカウント名とパスワードのみ登録してください。
           </p>
         </div>
         {enabled ? (

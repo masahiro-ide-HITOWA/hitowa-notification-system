@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { canUseWebMail } from "@/lib/mail-permission";
+import {
+  HQ_WEB_MAIL_EXCLUDED_NOTE,
+  WEB_MAIL_NEEDS_SETTINGS_NOTE,
+  resolveWebMailNavMode,
+} from "@/lib/mail-permission";
 import { formatUnreadBadge } from "@/lib/notifications";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { useMailConfigStatus } from "@/lib/use-mail-config-status";
 import { useUnreadNotificationCount } from "@/lib/use-unread-notification-count";
 
 function navClass(active: boolean): string {
@@ -13,22 +18,12 @@ function navClass(active: boolean): string {
   }`;
 }
 
-function WebMailNavButton({ pathname }: { pathname: string }) {
-  const enabled = canUseWebMail(DEMO_USER_PROFILE.email);
-
-  if (enabled) {
-    return (
-      <Link href="/mail" className={navClass(pathname === "/mail")}>
-        Webメール
-      </Link>
-    );
-  }
-
+function DisabledWebMail({ tooltip }: { tooltip: string }) {
   return (
     <span className="relative group">
       <span
         aria-disabled="true"
-        title="※本部社員（@hitowa.com）はWebメール機能の対象外です"
+        title={tooltip}
         className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 opacity-50 cursor-not-allowed inline-block"
       >
         Webメール
@@ -37,10 +32,45 @@ function WebMailNavButton({ pathname }: { pathname: string }) {
         role="tooltip"
         className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-56 -translate-x-1/2 rounded-lg bg-slate-700 px-2.5 py-2 text-[10px] font-medium leading-relaxed text-white shadow-lg group-hover:block"
       >
-        ※本部社員（@hitowa.com）はWebメール機能の対象外です
+        {tooltip}
       </span>
     </span>
   );
+}
+
+function WebMailNavButton({ pathname }: { pathname: string }) {
+  const status = useMailConfigStatus(DEMO_USER_PROFILE.portalUserId, DEMO_USER_PROFILE.email);
+  const mode = resolveWebMailNavMode(DEMO_USER_PROFILE.email, status.username, status.hasPassword);
+
+  if (mode === "enabled") {
+    return (
+      <Link href="/mail" className={navClass(pathname === "/mail")}>
+        Webメール
+      </Link>
+    );
+  }
+
+  if (mode === "needs-settings") {
+    return (
+      <span className="relative group">
+        <Link
+          href="/settings/mail"
+          title={WEB_MAIL_NEEDS_SETTINGS_NOTE}
+          className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 opacity-50 inline-block"
+        >
+          Webメール
+        </Link>
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-56 -translate-x-1/2 rounded-lg bg-slate-700 px-2.5 py-2 text-[10px] font-medium leading-relaxed text-white shadow-lg group-hover:block"
+        >
+          {WEB_MAIL_NEEDS_SETTINGS_NOTE}
+        </span>
+      </span>
+    );
+  }
+
+  return <DisabledWebMail tooltip={HQ_WEB_MAIL_EXCLUDED_NOTE} />;
 }
 
 export default function Header() {

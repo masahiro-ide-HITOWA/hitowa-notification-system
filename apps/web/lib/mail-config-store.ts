@@ -1,7 +1,8 @@
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { decryptPassword, encryptPassword } from "@/lib/mail-crypto";
+import { MAIL_SERVER_DEFAULTS } from "@/lib/mail-config-defaults";
 import {
-  isMaskedOrEmptyPassword,
+  planMailPasswordUpdate,
   recordFromItem,
   toPublicMailConfig,
   type MailConfigInput,
@@ -60,17 +61,34 @@ export async function getMailConfigForConnection(
   deps: MailConfigStoreDeps = defaultDeps
 ): Promise<(MailConfigInput & { portalUserId: string }) | null> {
   const record = recordFromItem(await deps.getItem(portalUserId));
-  if (!record || !record.passwordEncrypted) {
+  if (!record || !record.passwordEncrypted || record.username.trim() === "") {
     return null;
   }
   return {
     portalUserId,
-    imapHost: record.imapHost,
-    imapPort: record.imapPort,
-    smtpHost: record.smtpHost,
-    smtpPort: record.smtpPort,
+    ...MAIL_SERVER_DEFAULTS,
     username: record.username,
     password: decryptPassword(record.passwordEncrypted),
+  };
+}
+
+export async function resolveMailConfigPlaintext(
+  portalUserId: string,
+  config: MailConfigInput,
+  deps: MailConfigStoreDeps = defaultDeps
+): Promise<MailConfigInput> {
+  const existing = recordFromItem(await deps.getItem(portalUserId));
+  const plan = planMailPasswordUpdate(config.password, existing?.passwordEncrypted);
+  if (plan.kind === "missing") {
+    throw new Error("password is required");
+  }
+  if (plan.kind === "replace") {
+    return { ...MAIL_SERVER_DEFAULTS, username: config.username, password: plan.plaintext };
+  }
+  return {
+    ...MAIL_SERVER_DEFAULTS,
+    username: config.username,
+    password: decryptPassword(existing?.passwordEncrypted ?? ""),
   };
 }
 
@@ -80,23 +98,21 @@ export async function saveMailConfig(
   deps: MailConfigStoreDeps = defaultDeps
 ): Promise<MailConfigPublic> {
   const existing = recordFromItem(await deps.getItem(portalUserId));
+  const plan = planMailPasswordUpdate(config.password, existing?.passwordEncrypted);
   let passwordEncrypted = existing?.passwordEncrypted ?? "";
 
-  if (!isMaskedOrEmptyPassword(config.password)) {
-    passwordEncrypted = encryptPassword(config.password);
+  if (plan.kind === "replace") {
+    passwordEncrypted = encryptPassword(plan.plaintext);
   }
 
-  if (!passwordEncrypted) {
+  if (plan.kind === "missing" || !passwordEncrypted) {
     throw new Error("password is required");
   }
 
   const updatedAt = deps.now ? deps.now() : new Date().toISOString();
   const item = {
     portalUserId,
-    imapHost: config.imapHost,
-    imapPort: config.imapPort,
-    smtpHost: config.smtpHost,
-    smtpPort: config.smtpPort,
+    ...MAIL_SERVER_DEFAULTS,
     username: config.username,
     passwordEncrypted,
     updatedAt,
