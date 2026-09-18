@@ -31,7 +31,7 @@ export function resolvePortalUserIdFromMappings(
   items: unknown[] | undefined,
   recipientEmail: string
 ): string | null {
-  if (!items) {
+  if (!items || items.length === 0) {
     return null;
   }
   const target = recipientEmail.trim().toLowerCase();
@@ -69,4 +69,37 @@ export function createNotificationFromEmail(
     isRead: false,
     createdAt,
   };
+}
+
+export function dynamoErrorName(error: unknown): string | null {
+  if (!isRecord(error) || typeof error.name !== "string") {
+    return null;
+  }
+  return error.name;
+}
+
+export function isDynamoTableMissing(error: unknown): boolean {
+  const name = dynamoErrorName(error);
+  if (name === "ResourceNotFoundException" || name === "ResourceNotFound") {
+    return true;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /requested resource not found|cannot do operations on a non-existent table/i.test(
+    error.message
+  );
+}
+
+export function isDynamoValidationError(error: unknown): boolean {
+  return dynamoErrorName(error) === "ValidationException";
+}
+
+export function logEmailWebhookError(context: string, error: unknown): void {
+  if (error instanceof Error) {
+    console.error(context, error.message);
+    console.error(error.stack);
+    return;
+  }
+  console.error(context, error);
 }

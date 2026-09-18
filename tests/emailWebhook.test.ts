@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseEmailNotification } from "../apps/web/lib/email-parser";
 import {
   createNotificationFromEmail,
+  isDynamoTableMissing,
   resolvePortalUserIdFromMappings,
 } from "../apps/web/lib/email-notification";
 
@@ -85,6 +86,24 @@ describe("email notification persistence helpers", () => {
       "mei-sei@hitowa.com"
     );
     expect(portalUserId).toBe("00400611");
+  });
+
+  it("returns null when no attributes.email matches so the API can 404", () => {
+    expect(
+      resolvePortalUserIdFromMappings(
+        [{ portalUserId: "00400611", attributes: { email: "other@hitowa.com" } }],
+        "mei-sei@hitowa.com"
+      )
+    ).toBeNull();
+    expect(resolvePortalUserIdFromMappings([], "mei-sei@hitowa.com")).toBeNull();
+    expect(resolvePortalUserIdFromMappings(undefined, "mei-sei@hitowa.com")).toBeNull();
+  });
+
+  it("detects a missing DynamoDB table error", () => {
+    const error = new Error("Requested resource not found");
+    error.name = "ResourceNotFoundException";
+    expect(isDynamoTableMissing(error)).toBe(true);
+    expect(isDynamoTableMissing(new Error("timeout"))).toBe(false);
   });
 
   it("builds an unread NotificationItem for DynamoDB", () => {
