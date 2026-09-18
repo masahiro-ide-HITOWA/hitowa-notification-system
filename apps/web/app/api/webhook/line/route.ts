@@ -13,7 +13,7 @@ const client = new messagingApi.MessagingApiClient({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const events: WebhookEvent[] = body.events || [];
+    const events: webhook.Event[] = body.events || [];
 
     // LINE Developers の「検証」ボタンからのダミーリクエスト対策
     if (events.length === 0) {
