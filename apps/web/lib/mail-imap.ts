@@ -138,7 +138,7 @@ export async function fetchMailDetail(
         throw new MailImapError("NOT_FOUND", "メールが見つかりません");
       }
       const parsed = await simpleParser(message.source);
-      return toMailDetail(message.uid, parsed);
+      return toMailDetail(message.uid, parsed as any);
     },
     deps
   );

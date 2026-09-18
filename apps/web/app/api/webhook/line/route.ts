@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { messagingApi, WebhookEvent } from '@line/bot-sdk';
+import { messagingApi } from '@line/bot-sdk';
+import type { webhook } from '@line/bot-sdk';
+
 
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
