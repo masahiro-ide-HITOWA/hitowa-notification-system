@@ -7,6 +7,7 @@ import {
   type NotificationItem,
   type NotificationSystemName,
 } from "@/lib/notifications";
+import { markItemsAsRead } from "@/lib/notification-read";
 
 interface NotificationListProps {
   portalUserId: string;
@@ -70,6 +71,34 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
 
   const unreadCount = countUnreadNotifications(items);
 
+  async function handleSelect(item: NotificationItem) {
+    if (item.isRead) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/notifications/read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": portalUserId,
+        },
+        body: JSON.stringify({ id: item.id, portalUserId }),
+      });
+      const data: unknown = await res.json();
+      if (
+        res.ok &&
+        typeof data === "object" &&
+        data !== null &&
+        "success" in data &&
+        data.success === true
+      ) {
+        setItems((current) => markItemsAsRead(current, item.id));
+      }
+    } catch {
+      console.error("Failed to mark notification as read");
+    }
+  }
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center gap-2">
@@ -92,10 +121,21 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
           items.map((item) => (
             <article
               key={item.id}
-              className={`rounded-xl border p-3.5 space-y-1.5 ${
+              onClick={() => {
+                void handleSelect(item);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  void handleSelect(item);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              className={`rounded-xl border p-3.5 space-y-1.5 text-left ${
                 item.isRead
                   ? "bg-white border-slate-200"
-                  : "bg-indigo-50/80 border-indigo-200 shadow-sm"
+                  : "bg-indigo-50/80 border-indigo-200 shadow-sm cursor-pointer hover:border-indigo-300"
               }`}
             >
               <div className="flex flex-wrap items-center gap-1.5">
