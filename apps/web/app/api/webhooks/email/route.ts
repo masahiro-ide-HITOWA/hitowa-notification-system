@@ -10,6 +10,7 @@ import {
   logEmailWebhookError,
   resolvePortalUserIdFromMappings,
 } from "@/lib/email-notification";
+import { sendLinePushIfLinked } from "@/lib/line-push";
 
 const USER_TABLE =
   process.env.DYNAMODB_TABLE_NAME || process.env.DYNAMODB_USER_TABLE || "HitowaUserMappings";
@@ -125,6 +126,16 @@ export async function POST(request: Request) {
         return tableMissingResponse(NOTIFICATION_TABLE);
       }
       throw error;
+    }
+
+    try {
+      await sendLinePushIfLinked(
+        portalUserId,
+        notification.systemName,
+        notification.title
+      );
+    } catch (error) {
+      logEmailWebhookError("[email webhook] LINE push failed", error);
     }
 
     return NextResponse.json({ success: true, notificationId });
