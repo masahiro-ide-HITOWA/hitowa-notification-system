@@ -46,11 +46,19 @@ export async function POST(request: Request) {
       expiresAt,
       lineAddFriendUrl: "https://line.me/R/ti/p/" + (process.env.LINE_BOT_BASIC_ID || ""),
     });
-  } catch (error) {
-    console.error("Failed to issue one-time code:", error);
-    return NextResponse.json(
-      { success: false, error: "コードの発行に失敗しました" },
-      { status: 500 }
-    );
-  }
+  // 変更後（エラー詳細をレスポンスに露出させる）
+} catch (error: any) {
+  console.error("Error issuing code:", error);
+  return NextResponse.json(
+    { 
+      success: false, 
+      error: "コードの発行に失敗しました",
+      debugMessage: error?.message || String(error),
+      debugName: error?.name,
+      debugCode: error?.$metadata?.httpStatusCode,
+      debugStack: error?.stack
+    },
+    { status: 500 }
+  );
+}
 }
