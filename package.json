@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "logs:line-webhook": "tsx scripts/get-latest-logs.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +17,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1139.0",
     "@aws-sdk/client-dynamodb": "^3.1124.0",
     "@aws-sdk/lib-dynamodb": "^3.1124.0",
     "@line/bot-sdk": "^11.2.0",

@@ -7,6 +7,10 @@ import {
   type LineMappingReader,
 } from "@/lib/line-mapping-lookup";
 
+export type PrepareLineLinkResult =
+  | { ok: true; key: Record<string, string> }
+  | { ok: false; reason: "not_found" | "expired" | "update_failed" };
+
 export type CompleteLineLinkResult =
   | { ok: true }
   | { ok: false; reason: "not_found" | "expired" | "update_failed" };
@@ -58,12 +62,38 @@ async function defaultUpdateLink(
 
 const defaultWriter: LineMappingWriter = { updateLink: defaultUpdateLink };
 
-export async function completeLineLinkByCode(
-  code: string,
+export async function persistCompletedLink(
+  key: Record<string, string>,
   lineUserId: string,
-  reader: LineMappingReader = defaultLineMappingReader,
   writer: LineMappingWriter = defaultWriter
-): Promise<CompleteLineLinkResult> {
+): Promise<void> {
+  await writer.updateLink(key, lineUserId, new Date().toISOString());
+}
+
+export async function persistLineReplyDebug(
+  key: Record<string, string>,
+  status: number,
+  errorMessage: string | null
+): Promise<void> {
+  await docClient.send(
+    new UpdateCommand({
+      TableName: LINE_MAPPING_TABLE,
+      Key: key,
+      UpdateExpression:
+        "SET lastReplyStatus = :status, lastReplyError = :error, lastReplyAt = :at",
+      ExpressionAttributeValues: {
+        ":status": status,
+        ":error": errorMessage ?? "",
+        ":at": new Date().toISOString(),
+      },
+    })
+  );
+}
+
+export async function prepareLineLinkByCode(
+  code: string,
+  reader: LineMappingReader = defaultLineMappingReader
+): Promise<PrepareLineLinkResult> {
   const item = await findLineMapping({ code }, reader);
   const found = Boolean(item && isRecord(item));
   console.log("[line-webhook] dynamodbFound", found, {
@@ -80,8 +110,21 @@ export async function completeLineLinkByCode(
   if (!key) {
     return { ok: false, reason: "update_failed" };
   }
+  return { ok: true, key };
+}
+
+export async function completeLineLinkByCode(
+  code: string,
+  lineUserId: string,
+  reader: LineMappingReader = defaultLineMappingReader,
+  writer: LineMappingWriter = defaultWriter
+): Promise<CompleteLineLinkResult> {
+  const prepared = await prepareLineLinkByCode(code, reader);
+  if (!prepared.ok) {
+    return prepared;
+  }
   try {
-    await writer.updateLink(key, lineUserId, new Date().toISOString());
+    await writer.updateLink(prepared.key, lineUserId, new Date().toISOString());
     return { ok: true };
   } catch {
     return { ok: false, reason: "update_failed" };
