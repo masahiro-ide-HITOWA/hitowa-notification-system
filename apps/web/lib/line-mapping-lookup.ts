@@ -15,6 +15,7 @@ export interface LineMappingReader {
   getByKey: (key: Record<string, string>) => Promise<Record<string, unknown> | null>;
   queryByOneTimeCode: (code: string) => Promise<Record<string, unknown> | null>;
   scanByOneTimeCode?: (code: string) => Promise<Record<string, unknown> | null>;
+  scanByPortalUserId?: (portalUserId: string) => Promise<Record<string, unknown> | null>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -55,11 +56,12 @@ export function statusFromMappingItem(
 }
 
 export async function findLineMapping(
-  params: { code?: string | null; email?: string | null },
+  params: { code?: string | null; email?: string | null; portalUserId?: string | null },
   reader: LineMappingReader
 ): Promise<Record<string, unknown> | null> {
   const code = params.code?.trim() ?? "";
   const email = params.email?.trim() ?? "";
+  const portalUserId = params.portalUserId?.trim() ?? "";
 
   if (code !== "") {
     const fromIndex = await ignoreLookupError(() => reader.queryByOneTimeCode(code));
@@ -86,7 +88,22 @@ export async function findLineMapping(
     }
   }
 
+  const scanByPortalUserId = reader.scanByPortalUserId;
+  if (portalUserId !== "" && scanByPortalUserId) {
+    const fromPortalUser = await ignoreLookupError(() => scanByPortalUserId(portalUserId));
+    if (fromPortalUser) {
+      return fromPortalUser;
+    }
+  }
+
   return null;
+}
+
+export async function findMappingByPortalUserIdOrCode(
+  params: { portalUserId?: string | null; code?: string | null; email?: string | null },
+  reader: LineMappingReader
+): Promise<Record<string, unknown> | null> {
+  return findLineMapping(params, reader);
 }
 
 async function defaultGetByKey(key: Record<string, string>): Promise<Record<string, unknown> | null> {
@@ -124,10 +141,31 @@ async function defaultScanByOneTimeCode(code: string): Promise<Record<string, un
   return isRecord(first) ? first : null;
 }
 
+function pickLinkedItem(items: unknown[] | undefined): Record<string, unknown> | null {
+  const records = (items ?? []).filter(isRecord);
+  const linked = records.find((item) => {
+    const lineUserId = typeof item.lineUserId === "string" && item.lineUserId !== "";
+    return item.status === "COMPLETED" || lineUserId;
+  });
+  return linked ?? null;
+}
+
+async function defaultScanByPortalUserId(portalUserId: string): Promise<Record<string, unknown> | null> {
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: LINE_MAPPING_TABLE,
+      FilterExpression: "portalUserId = :puid",
+      ExpressionAttributeValues: { ":puid": portalUserId },
+    })
+  );
+  return pickLinkedItem(result.Items);
+}
+
 const defaultReader: LineMappingReader = {
   getByKey: defaultGetByKey,
   queryByOneTimeCode: defaultQueryByOneTimeCode,
   scanByOneTimeCode: defaultScanByOneTimeCode,
+  scanByPortalUserId: defaultScanByPortalUserId,
 };
 
 export async function readLineLinkStatus(

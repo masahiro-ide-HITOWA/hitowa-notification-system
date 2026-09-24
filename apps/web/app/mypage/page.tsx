@@ -91,8 +91,12 @@ export default function MyPage() {
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': userProfile.portalUserId,
+          'x-user-email': userProfile.email,
         },
-        body: JSON.stringify({ portalUserId: userProfile.portalUserId }),
+        body: JSON.stringify({
+          portalUserId: userProfile.portalUserId,
+          email: userProfile.email,
+        }),
       });
       const data: { success: boolean; message?: string } = await res.json();
       if (data.success) {
