@@ -70,8 +70,9 @@ export async function findLineMapping(
     if (fromCodeKey) {
       return fromCodeKey;
     }
-    if (reader.scanByOneTimeCode) {
-      const fromScan = await ignoreLookupError(() => reader.scanByOneTimeCode?.(code) ?? null);
+    const scanByOneTimeCode = reader.scanByOneTimeCode;
+    if (scanByOneTimeCode) {
+      const fromScan = await ignoreLookupError(() => scanByOneTimeCode(code));
       if (fromScan) {
         return fromScan;
       }
