@@ -54,7 +54,12 @@ export default function MyPage() {
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch('/api/line/check-status?code=' + codeData.oneTimeCode);
+        const res = await fetch('/api/line/check-status?code=' + codeData.oneTimeCode, {
+          headers: {
+            'x-user-id': userProfile.portalUserId,
+            'x-user-email': userProfile.email,
+          },
+        });
         const data = await res.json();
 
         if (data.success && data.status === 'COMPLETED') {

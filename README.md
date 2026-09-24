@@ -143,14 +143,18 @@ apps/web/
 `apps/web/.env.local` を作成または更新し、以下の項目を設定します。
 
 ```env
-# DynamoDB Configuration
-AWS_REGION=ap-northeast-1
-DYNAMODB_USER_MAPPINGS_TABLE=HitowaUserMappings
+# DynamoDB（コード発行 POST /api/line/issue-code が参照するキー）
+# Amplify では AWS_REGION 手動設定ができない場合あり。未設定時は lib/dynamodb.ts が ap-northeast-1 を使用。
+DYNAMODB_TABLE_NAME=HitowaUserMappings
 DYNAMODB_NOTIFICATION_TABLE=HitowaNotifications
+DYNAMODB_MAIL_CONFIG_TABLE=HitowaMailConfigs
 
-# LINE Messaging API
+# LINE Messaging API（Webhook / Push。コード発行自体には不要）
 LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
+LINE_BOT_BASIC_ID=@your_line_basic_id
 
+# メール設定パスワード暗号化（KMS ARN ではない）
+ENCRYPTION_KEY=replace-with-a-long-random-secret
 ```
 
 ### 6.2 DynamoDB テーブルの作成

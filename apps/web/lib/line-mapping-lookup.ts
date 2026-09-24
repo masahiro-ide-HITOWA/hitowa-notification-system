@@ -1,4 +1,4 @@
-import { GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
 
 export const LINE_MAPPING_TABLE =
@@ -14,6 +14,7 @@ export interface LineLinkStatusResponse {
 export interface LineMappingReader {
   getByKey: (key: Record<string, string>) => Promise<Record<string, unknown> | null>;
   queryByOneTimeCode: (code: string) => Promise<Record<string, unknown> | null>;
+  scanByOneTimeCode?: (code: string) => Promise<Record<string, unknown> | null>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -69,6 +70,12 @@ export async function findLineMapping(
     if (fromCodeKey) {
       return fromCodeKey;
     }
+    if (reader.scanByOneTimeCode) {
+      const fromScan = await ignoreLookupError(() => reader.scanByOneTimeCode?.(code) ?? null);
+      if (fromScan) {
+        return fromScan;
+      }
+    }
   }
 
   if (email !== "") {
@@ -104,15 +111,30 @@ async function defaultQueryByOneTimeCode(code: string): Promise<Record<string, u
   return isRecord(first) ? first : null;
 }
 
+async function defaultScanByOneTimeCode(code: string): Promise<Record<string, unknown> | null> {
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: LINE_MAPPING_TABLE,
+      FilterExpression: "oneTimeCode = :code",
+      ExpressionAttributeValues: { ":code": code },
+    })
+  );
+  const first = result.Items?.[0];
+  return isRecord(first) ? first : null;
+}
+
 const defaultReader: LineMappingReader = {
   getByKey: defaultGetByKey,
   queryByOneTimeCode: defaultQueryByOneTimeCode,
+  scanByOneTimeCode: defaultScanByOneTimeCode,
 };
 
-export async function readLineLinkStatus(params: {
-  code?: string | null;
-  email?: string | null;
-}): Promise<LineLinkStatusResponse> {
-  const item = await findLineMapping(params, defaultReader);
+export async function readLineLinkStatus(
+  params: { code?: string | null; email?: string | null },
+  reader: LineMappingReader = defaultReader
+): Promise<LineLinkStatusResponse> {
+  const item = await findLineMapping(params, reader);
   return statusFromMappingItem(item);
 }
+
+export const defaultLineMappingReader = defaultReader;

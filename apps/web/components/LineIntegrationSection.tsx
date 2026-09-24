@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 
 export function LineIntegrationSection() {
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,12 @@ export function LineIntegrationSection() {
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch("/api/line/check-status?code=" + codeData.oneTimeCode);
+        const res = await fetch("/api/line/check-status?code=" + codeData.oneTimeCode, {
+          headers: {
+            "x-user-email": DEMO_USER_PROFILE.email,
+            "x-user-id": DEMO_USER_PROFILE.portalUserId,
+          },
+        });
         const data = await res.json();
 
         if (data.success && data.status === "COMPLETED") {
