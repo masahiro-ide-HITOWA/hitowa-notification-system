@@ -16,6 +16,11 @@ export async function POST(request: Request) {
 
     const { portalUserId, attributes } = parseIssueCodeRequest(bodyData, headerUserId);
 
+    // DynamoDBで必須となっている email キーを抽出・フォールバック作成
+    const email =
+      attributes?.email ||
+      (portalUserId.includes("@") ? portalUserId : `${portalUserId || "user"}@example.com`);
+
     const oneTimeCode = Math.floor(100000 + Math.random() * 900000).toString();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
@@ -28,6 +33,7 @@ export async function POST(request: Request) {
       new PutCommand({
         TableName: tableName,
         Item: {
+          email: email, // ★必須キー email を追加！
           oneTimeCode: oneTimeCode,
           portalUserId,
           attributes,
@@ -46,19 +52,18 @@ export async function POST(request: Request) {
       expiresAt,
       lineAddFriendUrl: "https://line.me/R/ti/p/" + (process.env.LINE_BOT_BASIC_ID || ""),
     });
-  // 変更後（エラー詳細をレスポンスに露出させる）
-} catch (error: any) {
-  console.error("Error issuing code:", error);
-  return NextResponse.json(
-    { 
-      success: false, 
-      error: "コードの発行に失敗しました",
-      debugMessage: error?.message || String(error),
-      debugName: error?.name,
-      debugCode: error?.$metadata?.httpStatusCode,
-      debugStack: error?.stack
-    },
-    { status: 500 }
-  );
-}
+  } catch (error: any) {
+    console.error("Error issuing code:", error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: "コードの発行に失敗しました",
+        debugMessage: error?.message || String(error),
+        debugName: error?.name,
+        debugCode: error?.$metadata?.httpStatusCode,
+        debugStack: error?.stack
+      },
+      { status: 500 }
+    );
+  }
 }
