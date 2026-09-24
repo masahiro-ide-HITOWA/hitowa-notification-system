@@ -65,6 +65,11 @@ export async function completeLineLinkByCode(
   writer: LineMappingWriter = defaultWriter
 ): Promise<CompleteLineLinkResult> {
   const item = await findLineMapping({ code }, reader);
+  const found = Boolean(item && isRecord(item));
+  console.log("[line-webhook] dynamodbFound", found, {
+    status: found && item && typeof item.status === "string" ? item.status : null,
+    hasEmail: found && item && typeof item.email === "string" && item.email.trim() !== "",
+  });
   if (!item || !isRecord(item)) {
     return { ok: false, reason: "not_found" };
   }

@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { messagingApi } from "@line/bot-sdk";
 import type { webhook } from "@line/bot-sdk";
 import { completeLineLinkByCode } from "@/lib/line-mapping-complete";
-
-const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || "";
-const client = new messagingApi.MessagingApiClient({
-  channelAccessToken,
-});
+import { replyLineText } from "@/lib/line-reply";
 
 function readLineUserId(event: webhook.Event): string | null {
   if (event.source?.type === "user" && typeof event.source.userId === "string") {
@@ -28,23 +23,14 @@ function replyText(reason: "linked" | "not_found" | "expired" | "update_failed" 
   return "連携コードが見つかりません。ポータルで発行した6桁コードを確認して、もう一度送信してください。";
 }
 
-async function reply(replyToken: string, text: string): Promise<void> {
-  if (!channelAccessToken) {
-    return;
-  }
-  await client.replyMessage({
-    replyToken,
-    messages: [{ type: "text", text }],
-  });
-}
-
-async function handlePairingCode(code: string, lineUserId: string, replyToken: string): Promise<void> {
-  const result = await completeLineLinkByCode(code, lineUserId);
+async function handlePairingCode(userText: string, lineUserId: string, replyToken: string): Promise<void> {
+  console.log("[line-webhook] userText", userText);
+  const result = await completeLineLinkByCode(userText, lineUserId);
   if (result.ok) {
-    await reply(replyToken, replyText("linked"));
+    await replyLineText(replyToken, replyText("linked"));
     return;
   }
-  await reply(replyToken, replyText(result.reason));
+  await replyLineText(replyToken, replyText(result.reason));
 }
 
 export async function POST(req: Request) {
@@ -60,18 +46,19 @@ export async function POST(req: Request) {
       if (event.type !== "message" || event.message.type !== "text" || !event.replyToken) {
         continue;
       }
-      const userMessage = event.message.text.trim();
+      const userText = event.message.text.trim();
       const lineUserId = readLineUserId(event);
-      if (/^\d{6}$/.test(userMessage) && lineUserId) {
-        await handlePairingCode(userMessage, lineUserId, event.replyToken);
+      if (/^\d{6}$/.test(userText) && lineUserId) {
+        await handlePairingCode(userText, lineUserId, event.replyToken);
       } else {
-        await reply(event.replyToken, replyText("need_code"));
+        console.log("[line-webhook] userText", userText);
+        await replyLineText(event.replyToken, replyText("need_code"));
       }
     }
 
-    return NextResponse.json({ message: "Success" }, { status: 200 });
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error("Webhook Error:", error);
-    return NextResponse.json({ message: "Success" }, { status: 200 });
+    console.error("[line-webhook] Webhook Error:", error);
+    return NextResponse.json({ success: true }, { status: 200 });
   }
 }
