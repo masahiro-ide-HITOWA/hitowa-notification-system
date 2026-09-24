@@ -13,6 +13,7 @@ applications:
             - npm ci
         build:
           commands:
+            - env | grep LINE_CHANNEL_ACCESS_TOKEN >> apps/web/.env.production || true
             - npm run build --workspace=@hitowa/web
       artifacts:
         # Next.js App Router / SSR: deploy the .next output, not a static `out/` folder.
