@@ -34,5 +34,7 @@ describe("parseIssueCodeRequest", () => {
     const result = parseIssueCodeRequest({}, "header-user");
     expect(result.portalUserId).toBe("header-user");
     expect(result.attributes).toEqual(FALLBACK_SAML_ATTRIBUTES);
+    expect(result.attributes.email).toBe("masahiro-ide@hitowa.com");
+    expect(result.attributes.divisionName).toBe("情報システム部");
   });
 });

@@ -49,7 +49,7 @@ describe("unlinkLineMapping", () => {
   it("updates DynamoDB with email as the primary key", async () => {
     const items = [
       {
-        email: "masahiro-ide@gr.hitowa.com",
+        email: "masahiro-ide@hitowa.com",
         oneTimeCode: "123456",
         portalUserId: "00400611",
         status: "COMPLETED",
@@ -66,9 +66,9 @@ describe("unlinkLineMapping", () => {
         },
       }
     );
-    expect(result).toEqual({ ok: true, email: "masahiro-ide@gr.hitowa.com" });
-    expect(keys).toEqual(["masahiro-ide@gr.hitowa.com"]);
-    expect(mappingEmailKey(items[0])).toBe("masahiro-ide@gr.hitowa.com");
+    expect(result).toEqual({ ok: true, email: "masahiro-ide@hitowa.com" });
+    expect(keys).toEqual(["masahiro-ide@hitowa.com"]);
+    expect(mappingEmailKey(items[0])).toBe("masahiro-ide@hitowa.com");
   });
 
   it("returns not_found when no linked mapping exists", async () => {

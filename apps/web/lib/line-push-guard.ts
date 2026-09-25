@@ -86,7 +86,7 @@ function collectLineErrorText(body: string): string {
 }
 
 const TEST_EMAIL_SUFFIXES = ["@example.com", "@example.org"];
-const TEST_EMAIL_EXACT = new Set(["masahiro-ide@gr.hitowa.com"]);
+const TEST_EMAIL_EXACT = new Set(["masahiro-ide@hitowa.com", "masahiro-ide@gr.hitowa.com"]);
 
 export function shouldPersistLineBlockDisable(
   email: string | null,

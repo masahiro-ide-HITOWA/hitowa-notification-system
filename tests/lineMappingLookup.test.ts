@@ -68,7 +68,7 @@ describe("line mapping lookup", () => {
   it("looks up COMPLETED mappings by email or portalUserId after reload", async () => {
     const items = [
       {
-        email: "masahiro-ide@gr.hitowa.com",
+        email: "masahiro-ide@hitowa.com",
         portalUserId: "00400611",
         oneTimeCode: "123456",
         status: "COMPLETED",
@@ -76,7 +76,7 @@ describe("line mapping lookup", () => {
       },
     ];
     const byEmail = await findLineMapping(
-      { email: "masahiro-ide@gr.hitowa.com" },
+      { email: "masahiro-ide@hitowa.com" },
       memoryReader(items)
     );
     expect(statusFromMappingItem(byEmail).isLinked).toBe(true);
@@ -94,13 +94,13 @@ describe("line mapping lookup", () => {
 
   it("looks up by oneTimeCode then by email partition key", async () => {
     const items = [
-      { email: "masahiro-ide@gr.hitowa.com", oneTimeCode: "123456", status: "PENDING" },
+      { email: "masahiro-ide@hitowa.com", oneTimeCode: "123456", status: "PENDING" },
     ];
     const byCode = await findLineMapping({ code: "123456" }, memoryReader(items));
-    expect(byCode?.email).toBe("masahiro-ide@gr.hitowa.com");
+    expect(byCode?.email).toBe("masahiro-ide@hitowa.com");
 
     const byEmail = await findLineMapping(
-      { email: "masahiro-ide@gr.hitowa.com" },
+      { email: "masahiro-ide@hitowa.com" },
       memoryReader(items, { failQuery: true })
     );
     expect(byEmail?.oneTimeCode).toBe("123456");

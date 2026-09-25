@@ -173,7 +173,7 @@ describe("sendLinePushIfLinked", () => {
           portalUserId: "00400611",
           status: "COMPLETED",
           lineUserId: "U-linked",
-          email: "masahiro-ide@gr.hitowa.com",
+          email: "masahiro-ide@hitowa.com",
         },
       ],
       pushMessage: async () => ({

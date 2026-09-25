@@ -8,7 +8,7 @@ import {
 
 describe("check-user-mapping", () => {
   it("parses email from argv or --email", () => {
-    expect(parseEmailArg(["masahiro-ide@gr.hitowa.com"])).toBe("masahiro-ide@gr.hitowa.com");
+    expect(parseEmailArg(["masahiro-ide@hitowa.com"])).toBe("masahiro-ide@hitowa.com");
     expect(parseEmailArg(["--email", "a@b.com"])).toBe("a@b.com");
     expect(parseEmailArg(["--email=a@b.com"])).toBe("a@b.com");
     expect(parseEmailArg([])).toBeNull();

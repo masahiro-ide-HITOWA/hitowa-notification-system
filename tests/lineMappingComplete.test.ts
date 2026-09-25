@@ -45,14 +45,14 @@ describe("completeLineLinkByCode", () => {
   });
 
   it("finds a code via scan when GSI and Get-by-code fail", async () => {
-    const items = [{ email: "masahiro-ide@gr.hitowa.com", oneTimeCode: "654321", status: "PENDING" }];
+    const items = [{ email: "masahiro-ide@hitowa.com", oneTimeCode: "654321", status: "PENDING" }];
     const found = await findLineMapping({ code: "654321" }, memoryReader(items, { failQuery: true, failGet: true }));
-    expect(found?.email).toBe("masahiro-ide@gr.hitowa.com");
+    expect(found?.email).toBe("masahiro-ide@hitowa.com");
   });
 
   it("updates status COMPLETED and lineUserId", async () => {
     const items: Array<Record<string, unknown>> = [
-      { email: "masahiro-ide@gr.hitowa.com", oneTimeCode: "123456", status: "PENDING" },
+      { email: "masahiro-ide@hitowa.com", oneTimeCode: "123456", status: "PENDING" },
     ];
     const updates: Array<{ key: Record<string, string>; lineUserId: string }> = [];
 
@@ -68,7 +68,7 @@ describe("completeLineLinkByCode", () => {
     );
 
     expect(result).toEqual({ ok: true });
-    expect(updates).toEqual([{ key: { email: "masahiro-ide@gr.hitowa.com" }, lineUserId: "UlineUser" }]);
+    expect(updates).toEqual([{ key: { email: "masahiro-ide@hitowa.com" }, lineUserId: "UlineUser" }]);
   });
 
   it("returns not_found when the code is unknown", async () => {

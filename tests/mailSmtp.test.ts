@@ -40,13 +40,13 @@ describe("mail-smtp-model", () => {
     expect(withSubjectPrefix("評価シート", "Re:")).toBe("Re: 評価シート");
     expect(withSubjectPrefix("Re: 評価シート", "Re:")).toBe("Re: 評価シート");
     expect(extractEmailAddress("人事 <hr@example.com>")).toBe("hr@example.com");
-    expect(resolveDisplayName("井出征希テスト", "masahiro-ide@gr.hitowa.com")).toBe(
+    expect(resolveDisplayName("井出征希テスト", "masahiro-ide@hitowa.com")).toBe(
       "井出征希テスト"
     );
-    expect(resolveDisplayName(undefined, "masahiro-ide@gr.hitowa.com")).toBe("masahiro-ide");
-    expect(resolveSenderFrom("井出征希テスト", "masahiro-ide@gr.hitowa.com")).toEqual({
+    expect(resolveDisplayName(undefined, "masahiro-ide@hitowa.com")).toBe("masahiro-ide");
+    expect(resolveSenderFrom("井出征希テスト", "masahiro-ide@hitowa.com")).toEqual({
       name: "井出征希テスト",
-      address: "masahiro-ide@gr.hitowa.com",
+      address: "masahiro-ide@hitowa.com",
     });
   });
 
@@ -88,7 +88,7 @@ describe("sendMail", () => {
         body: "完了しました",
         mode: "new",
         fromName: "井出征希テスト",
-        fromEmail: "masahiro-ide@gr.hitowa.com",
+        fromEmail: "masahiro-ide@hitowa.com",
       },
       {
         loadConfig: async () => sampleConfig,
@@ -112,9 +112,9 @@ describe("sendMail", () => {
       messageId: "<id@smtp>",
     });
     expect(sent[0]).toEqual({
-      from: { name: "井出征希テスト", address: "masahiro-ide@gr.hitowa.com" },
+      from: { name: "井出征希テスト", address: "masahiro-ide@hitowa.com" },
       envelope: {
-        from: "masahiro-ide@gr.hitowa.com",
+        from: "masahiro-ide@hitowa.com",
         to: ["boss@example.com"],
       },
       to: ["boss@example.com"],

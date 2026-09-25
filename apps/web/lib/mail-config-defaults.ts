@@ -19,4 +19,4 @@ export const MAIL_SERVER_DEFAULTS = {
   smtpPort: readPort(process.env.MAIL_SMTP_PORT, 587),
 };
 
-export const ACCOUNT_NAME_PLACEHOLDER = "masahiro-ide@gr.hitowa.com";
+export const ACCOUNT_NAME_PLACEHOLDER = "masahiro-ide@hitowa.com";

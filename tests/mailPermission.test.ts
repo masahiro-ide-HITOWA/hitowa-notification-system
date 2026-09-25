@@ -14,6 +14,7 @@ describe("canUseWebMail", () => {
   it("returns false for HQ employees on @hitowa.com", () => {
     expect(canUseWebMail("mei-sei@hitowa.com")).toBe(false);
     expect(canUseWebMail("taro@HITOWA.COM")).toBe(false);
+    expect(canUseWebMail("masahiro-ide@hitowa.com")).toBe(false);
   });
 
   it("returns true for other domains such as KAGOYA field staff", () => {
@@ -32,6 +33,7 @@ describe("canUseWebMail", () => {
 describe("mypage mail settings view", () => {
   it("shows the HQ exclusion note for @hitowa.com", () => {
     expect(mypageMailSettingsView("mei-sei@hitowa.com")).toBe("excluded");
+    expect(mypageMailSettingsView("masahiro-ide@hitowa.com")).toBe("excluded");
     expect(HQ_WEB_MAIL_EXCLUDED_NOTE).toBe("※本部社員はWebメール機能の対象外です");
   });
 
@@ -56,5 +58,6 @@ describe("resolveWebMailNavMode", () => {
 
   it("keeps HQ employees excluded regardless of saved credentials", () => {
     expect(resolveWebMailNavMode("mei-sei@hitowa.com", "user@kagoya.jp", true)).toBe("hq-excluded");
+    expect(resolveWebMailNavMode("masahiro-ide@hitowa.com")).toBe("hq-excluded");
   });
 });
