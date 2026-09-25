@@ -93,6 +93,8 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
     }
   }
 
+  const showPager = !loading && !error && (total > DEFAULT_NOTIFICATION_PAGE_SIZE || totalPages > 1);
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center gap-2">
@@ -121,6 +123,14 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         ))}
       </div>
       <div className="p-4 space-y-3">
+        {showPager && (
+          <NotificationPagination
+            page={page}
+            totalPages={totalPages}
+            onPrev={() => setPage((current) => Math.max(1, current - 1))}
+            onNext={() => setPage((current) => current + 1)}
+          />
+        )}
         {loading && <p className="text-xs text-slate-500">通知を読み込んでいます...</p>}
         {error && <p className="text-xs text-rose-600">{error}</p>}
         {!loading && !error && items.length === 0 && (
@@ -131,30 +141,48 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
           items.map((item) => (
             <NotificationListItem key={item.id} item={item} onSelect={(selected) => void handleSelect(selected)} />
           ))}
-        {!loading && !error && total > DEFAULT_NOTIFICATION_PAGE_SIZE && (
-          <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
-            >
-              前へ
-            </button>
-            <p className="text-[11px] text-slate-500">
-              {page} / {totalPages} ページ
-            </p>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => current + 1)}
-              className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
-            >
-              次へ
-            </button>
-          </div>
+        {showPager && (
+          <NotificationPagination
+            page={page}
+            totalPages={totalPages}
+            onPrev={() => setPage((current) => Math.max(1, current - 1))}
+            onNext={() => setPage((current) => current + 1)}
+          />
         )}
       </div>
     </section>
+  );
+}
+
+interface NotificationPaginationProps {
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+}
+
+function NotificationPagination({ page, totalPages, onPrev, onNext }: NotificationPaginationProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={onPrev}
+        className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
+      >
+        前へ
+      </button>
+      <p className="text-[11px] text-slate-500">
+        {page} / {totalPages} ページ
+      </p>
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={onNext}
+        className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
+      >
+        次へ
+      </button>
+    </div>
   );
 }
