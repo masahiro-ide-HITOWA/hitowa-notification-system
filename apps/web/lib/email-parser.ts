@@ -90,16 +90,39 @@ function cleanTitle(subject: string, systemName: NotificationSystemName): string
   return "ポータルからのお知らせ";
 }
 
+export function addressLikeToText(value: unknown): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    return addressLikeToText(value[0]);
+  }
+  if (!isRecord(value)) {
+    return "";
+  }
+  const fromText = readNonEmptyString(value.text);
+  if (fromText) {
+    return fromText;
+  }
+  if (Array.isArray(value.value)) {
+    return addressLikeToText(value.value[0]);
+  }
+  return readNonEmptyString(value.address) ?? readNonEmptyString(value.name) ?? "";
+}
+
 export function parsedMailToEmailPayload(parsed: {
-  from?: { text?: string };
-  to?: { text?: string };
+  from?: unknown;
+  to?: unknown;
   subject?: string;
   text?: string | false;
   html?: string | false;
 }): Record<string, string> {
   return {
-    from: parsed.from?.text?.trim() ?? "",
-    to: parsed.to?.text?.trim() ?? "",
+    from: addressLikeToText(parsed.from),
+    to: addressLikeToText(parsed.to),
     subject: parsed.subject?.trim() ?? "",
     body:
       (typeof parsed.text === "string" ? parsed.text : "") ||

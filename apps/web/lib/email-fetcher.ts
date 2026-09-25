@@ -1,6 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { parseEmailNotification, parsedMailToEmailPayload, type ParsedEmailNotification } from "@/lib/email-parser";
+import { parseEmailNotification, parsedMailToEmailPayload, addressLikeToText, type ParsedEmailNotification } from "@/lib/email-parser";
 import { isImapSecure } from "@/lib/mail-config";
 import { type ImapClientLike } from "@/lib/mail-imap";
 import { latestSequenceRange, MailImapError, type MailFetchedLike } from "@/lib/mail-imap-model";
@@ -41,7 +41,15 @@ async function parseFetchedSource(
   }
   try {
     const parsed = await simpleParser(message.source);
-    const result = parseEmailNotification(parsedMailToEmailPayload(parsed));
+    const result = parseEmailNotification(
+      parsedMailToEmailPayload({
+        from: { text: addressLikeToText(parsed.from) },
+        to: { text: addressLikeToText(parsed.to) },
+        subject: parsed.subject,
+        text: typeof parsed.text === "string" ? parsed.text : false,
+        html: typeof parsed.html === "string" ? parsed.html : false,
+      })
+    );
     if (!result.ok) {
       console.error("[email-fetcher] skip unparsable mail", {
         uid: message.uid,

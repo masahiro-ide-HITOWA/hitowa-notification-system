@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fetchSaasInboxEmails } from "../apps/web/lib/email-fetcher";
-import { parsedMailToEmailPayload } from "../apps/web/lib/email-parser";
+import { addressLikeToText, parsedMailToEmailPayload } from "../apps/web/lib/email-parser";
 import { MailImapError, type MailFetchedLike } from "../apps/web/lib/mail-imap-model";
 import type { ImapClientLike } from "../apps/web/lib/mail-imap";
 import type { MailCredentials } from "../apps/web/lib/secrets";
@@ -102,5 +102,22 @@ describe("parsedMailToEmailPayload", () => {
       subject: "評価",
       body: "本文",
     });
+  });
+
+  it("uses the first AddressObject when to is an array", () => {
+    expect(
+      addressLikeToText([
+        { text: "first@hitowa.com", value: [{ address: "first@hitowa.com" }] },
+        { text: "second@hitowa.com" },
+      ])
+    ).toBe("first@hitowa.com");
+    expect(
+      parsedMailToEmailPayload({
+        from: { value: [{ address: "noreply@kaonavi.jp" }] },
+        to: [{ text: "a@hitowa.com" }, { text: "b@hitowa.com" }],
+        subject: "評価",
+        text: "本文",
+      }).to
+    ).toBe("a@hitowa.com");
   });
 });
