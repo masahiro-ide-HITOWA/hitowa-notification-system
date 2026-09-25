@@ -67,11 +67,45 @@ describe("fetchSaasInboxEmails", () => {
           fetchOne: async () => false,
         }),
       })
-    ).rejects.toEqual(
-      expect.objectContaining({
-        code: "CONNECTION_FAILED",
-      })
-    );
+    ).rejects.toMatchObject({
+      code: "CONNECTION_FAILED",
+      detail: expect.stringContaining("ECONNREFUSED"),
+    });
+  });
+
+  it("includes IMAP command/code in CONNECTION_FAILED detail and masks passwords", async () => {
+    const imapError = new Error("Command failed") as Error & {
+      code: string;
+      command: string;
+      responseText: string;
+    };
+    imapError.code = "AUTHENTICATIONFAILED";
+    imapError.command = "LOGIN";
+    imapError.responseText = "NO [AUTHENTICATIONFAILED] Invalid credentials for secret-pass";
+
+    const rejected = await fetchSaasInboxEmails("INBOX", 20, {
+      getCredentials: async () => ({ ...credentials, password: "secret-pass" }),
+      createClient: () => ({
+        connect: async () => {
+          throw imapError;
+        },
+        logout: async () => undefined,
+        mailbox: false,
+        getMailboxLock: async () => ({ release: () => undefined }),
+        fetch: async function* () {
+          yield { uid: 1 };
+        },
+        fetchOne: async () => false,
+      }),
+    }).catch((error: unknown) => error);
+
+    const detail = String((rejected as { detail?: string }).detail);
+    expect(rejected).toMatchObject({ code: "CONNECTION_FAILED" });
+    expect(detail).toContain("command=LOGIN");
+    expect(detail).toContain("code=AUTHENTICATIONFAILED");
+    expect(detail).toContain("message=Command failed");
+    expect(detail).not.toContain("secret-pass");
+    expect(detail).toContain("********");
   });
 
   it("fetches SEEN messages when IMAP search is available", async () => {

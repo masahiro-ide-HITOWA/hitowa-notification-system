@@ -7,8 +7,9 @@ import {
   parseFetchedSource,
   searchMailboxUids,
 } from "@/lib/email-fetcher-imap";
-import { getMailCredentials, MailCredentialsError, type MailCredentials } from "@/lib/secrets";
+import { describeImapConnectionError } from "@/lib/email-imap-error";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
+import { getMailCredentials, MailCredentialsError, type MailCredentials } from "@/lib/secrets";
 
 export interface EmailFetcherDeps {
   getCredentials: () => Promise<MailCredentials>;
@@ -69,13 +70,14 @@ export async function fetchSaasInboxReport(
       throw error;
     }
     const message = error instanceof Error ? error.message : "IMAP connection failed";
-    console.error("[email-fetcher] IMAP connection failed", {
+    const detail = describeImapConnectionError(error, {
       host: credentials.host,
       port: credentials.port,
-      email: credentials.email,
-      error,
+      user: credentials.email,
+      password: credentials.password,
     });
-    throw new MailImapError("CONNECTION_FAILED", `IMAP接続に失敗しました: ${message}`);
+    console.error("[email-fetcher] IMAP connection failed", detail);
+    throw new MailImapError("CONNECTION_FAILED", `IMAP接続に失敗しました: ${message}`, detail);
   } finally {
     if (connected) {
       try {
