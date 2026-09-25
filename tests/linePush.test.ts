@@ -29,6 +29,21 @@ describe("findLinkedLineUserId", () => {
     ).toBeNull();
     expect(findLinkedLineUserId([], "00400611")).toBeNull();
   });
+
+  it("does not treat DISABLED or isActive false as linked", () => {
+    expect(
+      findLinkedLineUserId(
+        [{ portalUserId: "00400611", status: "COMPLETED", lineUserId: "U1", isActive: false }],
+        "00400611"
+      )
+    ).toBeNull();
+    expect(
+      findLinkedLineUserId(
+        [{ portalUserId: "00400611", status: "DISABLED", lineUserId: "U1" }],
+        "00400611"
+      )
+    ).toBeNull();
+  });
 });
 
 describe("sendLinePushIfLinked", () => {
@@ -94,5 +109,55 @@ describe("sendLinePushIfLinked", () => {
       pushMessage: async () => true,
     });
     expect(result).toEqual({ sent: false, reason: "lookup-failed" });
+  });
+
+  it("skips push for inactive or DISABLED accounts", async () => {
+    const pushMessage = vi.fn(async () => true);
+    const inactive = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
+      channelAccessToken: "token",
+      scanMappings: async () => [
+        {
+          portalUserId: "00400611",
+          status: "COMPLETED",
+          lineUserId: "U-linked",
+          isActive: false,
+        },
+      ],
+      pushMessage,
+    });
+    expect(inactive).toEqual({ sent: false, reason: "inactive" });
+    expect(pushMessage).not.toHaveBeenCalled();
+
+    const disabled = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
+      channelAccessToken: "token",
+      scanMappings: async () => [
+        { portalUserId: "00400611", status: "DISABLED", lineUserId: "U-linked" },
+      ],
+      pushMessage,
+    });
+    expect(disabled).toEqual({ sent: false, reason: "inactive" });
+  });
+
+  it("disables LINE mapping when LINE returns 400 Not a friend", async () => {
+    const disableBlockedLink = vi.fn(async () => undefined);
+    const result = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
+      channelAccessToken: "token",
+      scanMappings: async () => [
+        {
+          portalUserId: "00400611",
+          status: "COMPLETED",
+          lineUserId: "U-linked",
+          email: "masahiro-ide@gr.hitowa.com",
+        },
+      ],
+      pushMessage: async () => ({
+        ok: false,
+        status: 400,
+        body: "Not a friend",
+      }),
+      disableBlockedLink,
+    });
+    expect(result).toEqual({ sent: false, reason: "blocked" });
+    expect(disableBlockedLink).toHaveBeenCalledWith("masahiro-ide@gr.hitowa.com");
   });
 });

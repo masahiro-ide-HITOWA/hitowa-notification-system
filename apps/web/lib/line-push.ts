@@ -1,19 +1,15 @@
-import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
+import {
+  evaluateLinePushTarget,
+  isLineBlockOrUnfriendError,
+} from "@/lib/line-push-guard";
 import type { NotificationSystemName } from "@/lib/notifications";
 
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 
 const USER_TABLE =
   process.env.DYNAMODB_TABLE_NAME || process.env.DYNAMODB_USER_TABLE || "HitowaUserMappings";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readNonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
-}
 
 function textMessages(text: string): Array<Record<string, unknown>> {
   return [{ type: "text", text }];
@@ -45,59 +41,81 @@ export function findLinkedLineUserId(
   items: unknown[] | undefined,
   portalUserId: string
 ): string | null {
-  if (!items) {
-    return null;
-  }
-  const match = items.find((item) => {
-    if (!isRecord(item)) {
-      return false;
-    }
-    const mappedId =
-      readNonEmptyString(item.portalUserId) ?? readNonEmptyString(item.employeeId);
-    return mappedId === portalUserId && item.status === "COMPLETED";
-  });
-  if (!isRecord(match)) {
-    return null;
-  }
-  return readNonEmptyString(match.lineUserId);
+  const target = evaluateLinePushTarget(items, portalUserId);
+  return target.outcome === "linked" ? target.lineUserId : null;
 }
 
-export type LinePushSkipReason = "not-linked" | "no-token" | "push-failed" | "lookup-failed";
+export type LinePushSkipReason =
+  | "not-linked"
+  | "inactive"
+  | "blocked"
+  | "no-token"
+  | "push-failed"
+  | "lookup-failed";
 
 export type LinePushResult =
   | { sent: true; lineUserId: string }
   | { sent: false; reason: LinePushSkipReason };
 
+export interface LinePushHttpResult {
+  ok: boolean;
+  status: number;
+  body: string;
+}
+
 export interface LinePushDependencies {
   scanMappings?: (portalUserId: string) => Promise<unknown[]>;
-  pushMessage?: (lineUserId: string, text: string, actionUrl?: string | null) => Promise<boolean>;
+  pushMessage?: (
+    lineUserId: string,
+    text: string,
+    actionUrl?: string | null
+  ) => Promise<boolean | LinePushHttpResult>;
   channelAccessToken?: string | undefined;
   actionUrl?: string | null;
+  disableBlockedLink?: (email: string) => Promise<void>;
 }
 
 async function defaultScanMappings(portalUserId: string): Promise<unknown[]> {
   const result = await docClient.send(
     new ScanCommand({
       TableName: USER_TABLE,
-      FilterExpression: "portalUserId = :puid AND #st = :status",
-      ExpressionAttributeNames: { "#st": "status" },
-      ExpressionAttributeValues: {
-        ":puid": portalUserId,
-        ":status": "COMPLETED",
-      },
+      FilterExpression: "portalUserId = :puid",
+      ExpressionAttributeValues: { ":puid": portalUserId },
     })
   );
   return result.Items ?? [];
 }
 
+async function defaultDisableBlockedLink(email: string): Promise<void> {
+  await docClient.send(
+    new UpdateCommand({
+      TableName: USER_TABLE,
+      Key: { email },
+      UpdateExpression: "SET #st = :disabled, disabledAt = :at REMOVE lineUserId",
+      ExpressionAttributeNames: { "#st": "status" },
+      ExpressionAttributeValues: {
+        ":disabled": "DISABLED",
+        ":at": new Date().toISOString(),
+      },
+    })
+  );
+}
+
+function normalizePushResult(value: boolean | LinePushHttpResult): LinePushHttpResult {
+  if (typeof value === "boolean") {
+    return { ok: value, status: value ? 200 : 500, body: "" };
+  }
+  return value;
+}
+
 async function defaultPushMessage(
   lineUserId: string,
   text: string,
-  actionUrl?: string | null
-): Promise<boolean> {
+  _actionUrl?: string | null
+): Promise<LinePushHttpResult> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) {
-    return false;
+    return { ok: false, status: 0, body: "missing token" };
   }
   const response = await fetch(LINE_PUSH_URL, {
     method: "POST",
@@ -110,7 +128,8 @@ async function defaultPushMessage(
       messages: textMessages(text),
     }),
   });
-  return response.ok;
+  const body = await response.text();
+  return { ok: response.ok, status: response.status, body };
 }
 
 export async function sendLinePushIfLinked(
@@ -126,8 +145,12 @@ export async function sendLinePushIfLinked(
       deps?.channelAccessToken ?? process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
     const items = await scanMappings(portalUserId);
-    const lineUserId = findLinkedLineUserId(items, portalUserId);
-    if (!lineUserId) {
+    const target = evaluateLinePushTarget(items, portalUserId);
+    if (target.outcome === "inactive") {
+      console.log("[line-push] skip inactive or disabled user", portalUserId);
+      return { sent: false, reason: "inactive" };
+    }
+    if (target.outcome !== "linked") {
       return { sent: false, reason: "not-linked" };
     }
     if (!channelAccessToken) {
@@ -136,11 +159,23 @@ export async function sendLinePushIfLinked(
 
     const actionUrl = deps?.actionUrl;
     const text = formatInboundLinePushText(systemName, title, actionUrl);
-    const ok = await pushMessage(lineUserId, text, actionUrl);
-    if (!ok) {
-      return { sent: false, reason: "push-failed" };
+    const result = normalizePushResult(await pushMessage(target.lineUserId, text, actionUrl));
+    if (result.ok) {
+      return { sent: true, lineUserId: target.lineUserId };
     }
-    return { sent: true, lineUserId };
+    if (isLineBlockOrUnfriendError(result.status, result.body)) {
+      console.error("[line-push] LINE blocked or unfriended", result.status, result.body);
+      const disableBlockedLink = deps?.disableBlockedLink ?? defaultDisableBlockedLink;
+      if (target.email) {
+        try {
+          await disableBlockedLink(target.email);
+        } catch (disableError) {
+          console.error("[line-push] failed to set DISABLED after block", disableError);
+        }
+      }
+      return { sent: false, reason: "blocked" };
+    }
+    return { sent: false, reason: "push-failed" };
   } catch (error) {
     if (error instanceof Error) {
       console.error("[line-push] sendLinePushIfLinked failed", error.message);

@@ -9,6 +9,7 @@ import {
   isDynamoValidationError,
   logEmailWebhookError,
   resolvePortalUserIdFromMappings,
+  shouldSkipLinePushForMappings,
 } from "@/lib/email-notification";
 import { sendLinePushIfLinked } from "@/lib/line-push";
 
@@ -129,9 +130,16 @@ export async function POST(request: Request) {
     }
 
     try {
-      await sendLinePushIfLinked(portalUserId, notification.systemName, notification.title, {
-        actionUrl: notification.actionUrl,
-      });
+      if (shouldSkipLinePushForMappings(mappingItems, portalUserId)) {
+        logEmailWebhookError(
+          "[email webhook] skip LINE push for inactive or disabled user",
+          portalUserId
+        );
+      } else {
+        await sendLinePushIfLinked(portalUserId, notification.systemName, notification.title, {
+          actionUrl: notification.actionUrl,
+        });
+      }
     } catch (error) {
       logEmailWebhookError("[email webhook] LINE push failed", error);
     }

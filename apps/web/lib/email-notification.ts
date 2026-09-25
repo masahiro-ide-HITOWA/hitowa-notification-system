@@ -1,6 +1,7 @@
 import type { NotificationItem } from "@/lib/notifications";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
 import { unreadNotificationExpiresAt } from "@/lib/notification-ttl";
+import { evaluateLinePushTarget } from "@/lib/line-push-guard";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -53,6 +54,13 @@ export function resolvePortalUserIdFromMappings(
     return mappingEmail(item) === target;
   });
   return isRecord(anyMatch) ? mappingPortalUserId(anyMatch) : null;
+}
+
+export function shouldSkipLinePushForMappings(
+  items: unknown[] | undefined,
+  portalUserId: string
+): boolean {
+  return evaluateLinePushTarget(items, portalUserId).outcome === "inactive";
 }
 
 export function createNotificationFromEmail(
