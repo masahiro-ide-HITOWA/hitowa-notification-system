@@ -45,6 +45,8 @@ describe("line mapping lookup", () => {
       "COMPLETED"
     );
     expect(statusFromMappingItem({ status: "PENDING" }).isLinked).toBe(false);
+    expect(statusFromMappingItem({ status: "ACTIVE", lineUserId: "U123" }).isLinked).toBe(true);
+    expect(statusFromMappingItem({ status: "DISABLED", lineUserId: "U123" }).isLinked).toBe(false);
   });
 
   it("looks up by oneTimeCode then by email partition key", async () => {

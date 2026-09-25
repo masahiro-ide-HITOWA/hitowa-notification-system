@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildLinePushMessages,
@@ -47,6 +47,9 @@ describe("findLinkedLineUserId", () => {
 });
 
 describe("sendLinePushIfLinked", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   it("formats the inbound LINE push message", () => {
     expect(formatInboundLinePushText("カオナビ", "評価リマインド")).toBe(
       [
@@ -138,7 +141,30 @@ describe("sendLinePushIfLinked", () => {
     expect(disabled).toEqual({ sent: false, reason: "inactive" });
   });
 
-  it("disables LINE mapping when LINE returns 400 Not a friend", async () => {
+  it("does not disable mapping on a generic LINE 400", async () => {
+    const disableBlockedLink = vi.fn(async () => undefined);
+    const result = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
+      channelAccessToken: "token",
+      scanMappings: async () => [
+        {
+          portalUserId: "00400611",
+          status: "COMPLETED",
+          lineUserId: "U-linked",
+          email: "ops@hitowa.com",
+        },
+      ],
+      pushMessage: async () => ({
+        ok: false,
+        status: 400,
+        body: JSON.stringify({ message: "The request body has 1 error(s)" }),
+      }),
+      disableBlockedLink,
+    });
+    expect(result).toEqual({ sent: false, reason: "push-failed" });
+    expect(disableBlockedLink).not.toHaveBeenCalled();
+  });
+
+  it("does not persist DISABLED for demo users even on Not a friend", async () => {
     const disableBlockedLink = vi.fn(async () => undefined);
     const result = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
       channelAccessToken: "token",
@@ -158,6 +184,32 @@ describe("sendLinePushIfLinked", () => {
       disableBlockedLink,
     });
     expect(result).toEqual({ sent: false, reason: "blocked" });
-    expect(disableBlockedLink).toHaveBeenCalledWith("masahiro-ide@gr.hitowa.com");
+    expect(disableBlockedLink).not.toHaveBeenCalled();
+  });
+
+  it("disables LINE mapping only on explicit block errors in production", async () => {
+    const disableBlockedLink = vi.fn(async () => undefined);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("LINE_AUTO_DISABLE_ON_BLOCK", "true");
+    const result = await sendLinePushIfLinked("00400611", "カオナビ", "評価", {
+      channelAccessToken: "token",
+      scanMappings: async () => [
+        {
+          portalUserId: "00400611",
+          status: "COMPLETED",
+          lineUserId: "U-linked",
+          email: "ops@hitowa.com",
+        },
+      ],
+      pushMessage: async () => ({
+        ok: false,
+        status: 400,
+        body: JSON.stringify({ message: "You can't send messages because they have blocked you." }),
+      }),
+      disableBlockedLink,
+    });
+    expect(result).toEqual({ sent: false, reason: "blocked" });
+    expect(disableBlockedLink).toHaveBeenCalledWith("ops@hitowa.com");
+    vi.unstubAllEnvs();
   });
 });

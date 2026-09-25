@@ -46,12 +46,19 @@ export function statusFromMappingItem(
     return pendingLineStatus();
   }
   const lineUserId = typeof item.lineUserId === "string" && item.lineUserId !== "" ? item.lineUserId : null;
-  const isLinked = item.status === "COMPLETED" || lineUserId !== null;
+  const mappingStatus = typeof item.status === "string" ? item.status : "";
+  if (mappingStatus === "DISABLED" || mappingStatus === "UNLINKED") {
+    return pendingLineStatus();
+  }
+  const isLinked =
+    mappingStatus === "COMPLETED" ||
+    (mappingStatus === "ACTIVE" && lineUserId !== null) ||
+    lineUserId !== null;
   return {
     success: true,
     status: isLinked ? "COMPLETED" : "PENDING",
     isLinked,
-    lineUserId,
+    lineUserId: isLinked ? lineUserId : null,
   };
 }
 
@@ -144,8 +151,11 @@ async function defaultScanByOneTimeCode(code: string): Promise<Record<string, un
 function pickLinkedItem(items: unknown[] | undefined): Record<string, unknown> | null {
   const records = (items ?? []).filter(isRecord);
   const linked = records.find((item) => {
+    if (item.status === "DISABLED" || item.status === "UNLINKED") {
+      return false;
+    }
     const lineUserId = typeof item.lineUserId === "string" && item.lineUserId !== "";
-    return item.status === "COMPLETED" || lineUserId;
+    return item.status === "COMPLETED" || item.status === "ACTIVE" || lineUserId;
   });
   return linked ?? null;
 }

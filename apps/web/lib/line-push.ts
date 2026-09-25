@@ -3,6 +3,7 @@ import { docClient } from "@/lib/dynamodb";
 import {
   evaluateLinePushTarget,
   isLineBlockOrUnfriendError,
+  shouldPersistLineBlockDisable,
 } from "@/lib/line-push-guard";
 import type { NotificationSystemName } from "@/lib/notifications";
 
@@ -166,12 +167,14 @@ export async function sendLinePushIfLinked(
     if (isLineBlockOrUnfriendError(result.status, result.body)) {
       console.error("[line-push] LINE blocked or unfriended", result.status, result.body);
       const disableBlockedLink = deps?.disableBlockedLink ?? defaultDisableBlockedLink;
-      if (target.email) {
+      if (target.email && shouldPersistLineBlockDisable(target.email)) {
         try {
           await disableBlockedLink(target.email);
         } catch (disableError) {
           console.error("[line-push] failed to set DISABLED after block", disableError);
         }
+      } else {
+        console.log("[line-push] skip DISABLED update for test/dev or unmatched user");
       }
       return { sent: false, reason: "blocked" };
     }
