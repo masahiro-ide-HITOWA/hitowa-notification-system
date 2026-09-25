@@ -1,5 +1,6 @@
 import type { NotificationItem } from "@/lib/notifications";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
+import { unreadNotificationExpiresAt } from "@/lib/notification-ttl";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -58,7 +59,8 @@ export function createNotificationFromEmail(
   parsed: ParsedEmailNotification,
   portalUserId: string,
   notificationId: string,
-  createdAt: string
+  createdAt: string,
+  nowMs: number = Date.now()
 ): NotificationItem {
   return {
     id: notificationId,
@@ -68,6 +70,7 @@ export function createNotificationFromEmail(
     body: parsed.body,
     isRead: false,
     createdAt,
+    expiresAt: unreadNotificationExpiresAt(nowMs),
     ...(parsed.actionUrl ? { actionUrl: parsed.actionUrl } : {}),
   };
 }

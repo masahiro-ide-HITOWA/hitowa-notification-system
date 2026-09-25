@@ -2,6 +2,7 @@ import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
 import { isDynamoTableMissing } from "@/lib/email-notification";
 import type { NotificationItem } from "@/lib/notifications";
+import { readNotificationExpiresAt } from "@/lib/notification-ttl";
 
 const NOTIFICATION_TABLE =
   process.env.DYNAMODB_NOTIFICATION_TABLE || "HitowaNotifications";
@@ -55,9 +56,12 @@ export async function markNotificationAsRead(
       new UpdateCommand({
         TableName: NOTIFICATION_TABLE,
         Key: { portalUserId, id },
-        UpdateExpression: "SET isRead = :read",
+        UpdateExpression: "SET isRead = :read, expiresAt = :expiresAt",
         ConditionExpression: "attribute_exists(id) AND attribute_exists(portalUserId)",
-        ExpressionAttributeValues: { ":read": true },
+        ExpressionAttributeValues: {
+          ":read": true,
+          ":expiresAt": readNotificationExpiresAt(),
+        },
       })
     );
     return { ok: true, id };

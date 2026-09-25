@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { countUnreadNotifications, parseNotificationList } from "@/lib/notifications";
+import { parseNotificationFeed } from "@/lib/notification-query";
 
 export function useUnreadNotificationCount(portalUserId: string): number {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -14,9 +14,9 @@ export function useUnreadNotificationCount(portalUserId: string): number {
         const res = await fetch("/api/notifications", {
           headers: { "x-user-id": portalUserId },
         });
-        const parsed = parseNotificationList(await res.json());
+        const parsed = parseNotificationFeed(await res.json());
         if (!cancelled && parsed) {
-          setUnreadCount(countUnreadNotifications(parsed));
+          setUnreadCount(parsed.unreadCount);
         }
       } catch {
         if (!cancelled) {

@@ -1,75 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { NotificationListItem } from "@/components/notification-list-item";
 import {
-  countUnreadNotifications,
-  parseNotificationList,
-  type NotificationItem,
-  type NotificationSystemName,
-} from "@/lib/notifications";
-import { markItemsAsRead } from "@/lib/notification-read";
+  DEFAULT_NOTIFICATION_PAGE_SIZE,
+  parseNotificationFeed,
+  type NotificationFilter,
+} from "@/lib/notification-query";
+import type { NotificationItem } from "@/lib/notifications";
 
 interface NotificationListProps {
   portalUserId: string;
 }
 
-const SYSTEM_BADGE_CLASS: Record<NotificationSystemName, string> = {
-  カオナビ: "bg-blue-600 text-white",
-  TOKIUM: "bg-orange-500 text-white",
-  クラウドハウス労務: "bg-emerald-600 text-white",
-  全社ポータル: "bg-indigo-600 text-white",
-};
-
-function formatNotificationTime(iso: string): string {
-  return new Date(iso).toLocaleString("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const FILTERS: Array<{ id: NotificationFilter; label: string }> = [
+  { id: "all", label: "すべて" },
+  { id: "unread", label: "未読のみ" },
+  { id: "read", label: "既読のみ" },
+];
 
 export function NotificationList({ portalUserId }: NotificationListProps) {
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
+  const load = useCallback(
+    async (nextFilter: NotificationFilter, nextPage: number) => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/notifications", {
+        const params = new URLSearchParams({
+          filter: nextFilter,
+          page: String(nextPage),
+          limit: String(DEFAULT_NOTIFICATION_PAGE_SIZE),
+        });
+        const res = await fetch(`/api/notifications?${params.toString()}`, {
           headers: { "x-user-id": portalUserId },
         });
-        const data: unknown = await res.json();
-        const parsed = parseNotificationList(data);
+        const parsed = parseNotificationFeed(await res.json());
         if (!res.ok || !parsed) {
           throw new Error("通知一覧の取得に失敗しました");
         }
-        if (!cancelled) {
-          setItems(parsed);
-        }
+        setItems(parsed.items);
+        setPage(parsed.page);
+        setTotalPages(parsed.totalPages);
+        setTotal(parsed.total);
+        setUnreadCount(parsed.unreadCount);
+        setFilter(parsed.filter);
       } catch {
-        if (!cancelled) {
-          setError("通知を読み込めませんでした");
-        }
+        setError("通知を読み込めませんでした");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    }
+    },
+    [portalUserId]
+  );
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [portalUserId]);
-
-  const unreadCount = countUnreadNotifications(items);
+  useEffect(() => {
+    void load(filter, page);
+  }, [filter, load, page]);
 
   async function handleSelect(item: NotificationItem) {
     if (item.isRead) {
@@ -92,7 +86,7 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         "success" in data &&
         data.success === true
       ) {
-        setItems((current) => markItemsAsRead(current, item.id));
+        await load(filter, page);
       }
     } catch {
       console.error("Failed to mark notification as read");
@@ -109,7 +103,23 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
           </span>
         )}
       </div>
-
+      <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+        {FILTERS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setFilter(tab.id);
+              setPage(1);
+            }}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+              filter === tab.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div className="p-4 space-y-3">
         {loading && <p className="text-xs text-slate-500">通知を読み込んでいます...</p>}
         {error && <p className="text-xs text-rose-600">{error}</p>}
@@ -119,59 +129,31 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         {!loading &&
           !error &&
           items.map((item) => (
-            <article
-              key={item.id}
-              onClick={() => {
-                void handleSelect(item);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  void handleSelect(item);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              className={`rounded-xl border p-3.5 space-y-1.5 text-left ${
-                item.isRead
-                  ? "bg-white border-slate-200"
-                  : "bg-indigo-50/80 border-indigo-200 shadow-sm cursor-pointer hover:border-indigo-300"
-              }`}
-            >
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${SYSTEM_BADGE_CLASS[item.systemName]}`}
-                >
-                  {item.systemName}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    item.isRead
-                      ? "bg-slate-100 text-slate-500"
-                      : "bg-rose-500 text-white"
-                  }`}
-                >
-                  {item.isRead ? "既読" : "未読"}
-                </span>
-                <time className="ml-auto text-[10px] text-slate-400">
-                  {formatNotificationTime(item.createdAt)}
-                </time>
-              </div>
-              <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
-              <p className="text-xs text-slate-600 leading-relaxed">{item.body}</p>
-              {item.actionUrl && (
-                <a
-                  href={item.actionUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                  className="inline-flex items-center mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
-                >
-                  該当SaaSを開く ➔
-                </a>
-              )}
-            </article>
+            <NotificationListItem key={item.id} item={item} onSelect={(selected) => void handleSelect(selected)} />
           ))}
+        {!loading && !error && total > DEFAULT_NOTIFICATION_PAGE_SIZE && (
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
+            >
+              前へ
+            </button>
+            <p className="text-[11px] text-slate-500">
+              {page} / {totalPages} ページ
+            </p>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((current) => current + 1)}
+              className="text-xs font-bold text-indigo-600 disabled:text-slate-300"
+            >
+              次へ
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

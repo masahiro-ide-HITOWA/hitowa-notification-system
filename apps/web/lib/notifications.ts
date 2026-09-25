@@ -13,6 +13,7 @@ export interface NotificationItem {
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;
+  expiresAt?: number;
 }
 
 const MOCK_NOTIFICATIONS: NotificationItem[] = [
@@ -134,6 +135,9 @@ export function isNotificationItem(value: unknown): value is NotificationItem {
     return false;
   }
   if (value.actionUrl !== undefined && typeof value.actionUrl !== "string") {
+    return false;
+  }
+  if (value.expiresAt !== undefined && typeof value.expiresAt !== "number") {
     return false;
   }
   return true;
