@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { fetchSaasInboxEmails } from "../apps/web/lib/email-fetcher";
 import { addressLikeToText, parsedMailToEmailPayload } from "../apps/web/lib/email-parser";
-import { MailImapError, type MailFetchedLike } from "../apps/web/lib/mail-imap-model";
+import { type MailFetchedLike } from "../apps/web/lib/mail-imap-model";
 import type { ImapClientLike } from "../apps/web/lib/mail-imap";
 import type { MailCredentials } from "../apps/web/lib/secrets";
 
@@ -98,7 +98,10 @@ describe("fetchSaasInboxEmails", () => {
         },
         createClient: () => mockClient(new Map()),
       })
-    ).rejects.toBeInstanceOf(MailImapError);
+    ).rejects.toMatchObject({
+      code: "CONFIG_MISSING",
+      detail: "missing",
+    });
   });
 });
 

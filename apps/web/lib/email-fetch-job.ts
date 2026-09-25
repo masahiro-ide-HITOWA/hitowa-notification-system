@@ -1,5 +1,6 @@
 import { fetchSaasInboxReport, type EmailFetcherDeps } from "@/lib/email-fetcher";
 import { ingestParsedEmailNotification } from "@/lib/email-ingest";
+import { MailCredentialsError } from "@/lib/secrets";
 import { isMailImapError } from "@/lib/mail-imap-model";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
 
@@ -75,7 +76,17 @@ export function fetchEmailsJobErrorResponse(error: unknown): {
       body: {
         success: false,
         message: error.message,
-        errors: [{ message: error.message, detail: error.code }],
+        errors: [{ message: error.message, detail: error.detail ?? error.code }],
+      },
+    };
+  }
+  if (error instanceof MailCredentialsError) {
+    return {
+      status: 404,
+      body: {
+        success: false,
+        message: error.message,
+        errors: [{ message: error.message, detail: error.detail }],
       },
     };
   }

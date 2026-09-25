@@ -7,7 +7,7 @@ import {
   parseFetchedSource,
   searchMailboxUids,
 } from "@/lib/email-fetcher-imap";
-import { getMailCredentials, type MailCredentials } from "@/lib/secrets";
+import { getMailCredentials, MailCredentialsError, type MailCredentials } from "@/lib/secrets";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
 
 export interface EmailFetcherDeps {
@@ -43,8 +43,14 @@ export async function fetchSaasInboxReport(
   try {
     credentials = await deps.getCredentials();
   } catch (error) {
-    console.error("[email-fetcher] credentials unavailable", error);
-    throw new MailImapError("CONFIG_MISSING", "メール受信用の資格情報を取得できません");
+    const detail =
+      error instanceof MailCredentialsError
+        ? error.detail
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    console.error("[email-fetcher] credentials unavailable", detail, error);
+    throw new MailImapError("CONFIG_MISSING", "メール受信用の資格情報を取得できません", detail);
   }
 
   const client = deps.createClient(credentials);

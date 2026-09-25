@@ -2,11 +2,13 @@ export type MailImapErrorCode = "CONFIG_MISSING" | "CONNECTION_FAILED" | "NOT_FO
 
 export class MailImapError extends Error {
   readonly code: MailImapErrorCode;
+  readonly detail?: string;
 
-  constructor(code: MailImapErrorCode, message: string) {
+  constructor(code: MailImapErrorCode, message: string, detail?: string) {
     super(message);
     this.name = "MailImapError";
     this.code = code;
+    this.detail = detail;
   }
 }
 

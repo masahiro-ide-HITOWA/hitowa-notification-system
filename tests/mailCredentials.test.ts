@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  MailCredentialsError,
   SAAS_MAIL_SECRET_NAME,
+  describeAwsSdkError,
   getMailCredentials,
   mailCredentialsFromEnv,
   parseMailCredentialsSecret,
   resetMailCredentialsCache,
+  resolveSecretsManagerRegion,
   toMailConfigInput,
 } from "../apps/web/lib/secrets";
 
@@ -115,5 +118,26 @@ describe("mail credentials", () => {
       },
     });
     expect(credentials.email).toBe("test@hitowa.com");
+  });
+
+  it("surfaces AccessDeniedException name and message when env fallback is empty", async () => {
+    expect(resolveSecretsManagerRegion({})).toBe("ap-northeast-1");
+    const denied = new Error("User is not authorized to perform: secretsmanager:GetSecretValue");
+    denied.name = "AccessDeniedException";
+    (denied as Error & { $metadata: { httpStatusCode: number } }).$metadata = { httpStatusCode: 400 };
+    expect(describeAwsSdkError(denied, "ap-northeast-1")).toContain("name=AccessDeniedException");
+    expect(describeAwsSdkError(denied, "ap-northeast-1")).toContain("httpStatus=400");
+
+    await expect(
+      getMailCredentials({
+        fetchSecretString: async () => {
+          throw denied;
+        },
+        env: { NODE_ENV: "production", AWS_REGION: "ap-northeast-1" },
+      })
+    ).rejects.toMatchObject({
+      name: "MailCredentialsError",
+      detail: expect.stringContaining("AccessDeniedException"),
+    });
   });
 });

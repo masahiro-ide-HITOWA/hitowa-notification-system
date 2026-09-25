@@ -3,8 +3,20 @@ import {
   SecretsManagerClient,
 } from "@aws-sdk/client-secrets-manager";
 import type { MailConfigInput } from "@/lib/mail-config";
+import {
+  MailCredentialsError,
+  SAAS_MAIL_SECRET_NAME,
+  describeAwsSdkError,
+  resolveSecretsManagerRegion,
+} from "@/lib/mail-secrets-error";
 
-export const SAAS_MAIL_SECRET_NAME = "hitowa/notification-portal/saas-mail-credentials";
+export {
+  MailCredentialsError,
+  SAAS_MAIL_SECRET_NAME,
+  describeAwsSdkError,
+  resolveSecretsManagerRegion,
+};
+
 export const MAIL_CREDENTIALS_CACHE_TTL_MS = 8 * 60 * 1000;
 
 export interface MailCredentials {
@@ -51,6 +63,7 @@ function readPort(value: unknown): number | null {
 
 export function resetMailCredentialsCache(): void {
   cachedCredentials = null;
+  secretsClient = null;
 }
 
 export function parseMailCredentialsSecret(raw: string): MailCredentials | null {
@@ -109,15 +122,27 @@ function shouldSkipSecretsManager(env: NodeJS.ProcessEnv, deps: MailCredentialsD
 }
 
 async function defaultFetchSecretString(secretId: string): Promise<string> {
-  secretsClient ??= new SecretsManagerClient({
-    region: process.env.AWS_REGION || "ap-northeast-1",
-  });
-  const result = await secretsClient.send(new GetSecretValueCommand({ SecretId: secretId }));
-  const secret = result.SecretString?.trim() ?? "";
-  if (secret === "") {
-    throw new Error("SecretString is empty");
+  const region = resolveSecretsManagerRegion();
+  secretsClient ??= new SecretsManagerClient({ region });
+  try {
+    const result = await secretsClient.send(new GetSecretValueCommand({ SecretId: secretId }));
+    const secret = result.SecretString?.trim() ?? "";
+    if (secret === "") {
+      throw new MailCredentialsError(
+        "SecretString is empty",
+        describeAwsSdkError(new Error("SecretString is empty"), region)
+      );
+    }
+    return secret;
+  } catch (error) {
+    if (error instanceof MailCredentialsError) {
+      throw error;
+    }
+    throw new MailCredentialsError(
+      "Secrets Manager からの資格情報取得に失敗しました",
+      describeAwsSdkError(error, region)
+    );
   }
-  return secret;
 }
 
 export async function getMailCredentials(
@@ -126,11 +151,13 @@ export async function getMailCredentials(
   const env = deps.env ?? process.env;
   const now = deps.now ? deps.now() : Date.now();
   const ttl = deps.cacheTtlMs ?? MAIL_CREDENTIALS_CACHE_TTL_MS;
+  const region = resolveSecretsManagerRegion(env);
 
   if (cachedCredentials && cachedCredentials.expiresAt > now) {
     return cachedCredentials.value;
   }
 
+  let secretsDetail: string | null = null;
   if (!shouldSkipSecretsManager(env, deps)) {
     try {
       const fetchSecret = deps.fetchSecretString ?? defaultFetchSecretString;
@@ -139,9 +166,12 @@ export async function getMailCredentials(
         cachedCredentials = { value: parsed, expiresAt: now + ttl };
         return parsed;
       }
-      console.error("[mail-secrets] invalid secret JSON", { secretId: SAAS_MAIL_SECRET_NAME });
+      secretsDetail = `region=${region}; secretId=${SAAS_MAIL_SECRET_NAME}; name=InvalidSecretJson; message=email/password/host/port が不足しています`;
+      console.error("[mail-secrets] invalid secret JSON", secretsDetail);
     } catch (error) {
-      console.error("[mail-secrets] Secrets Manager fetch failed; falling back to env", error);
+      secretsDetail =
+        error instanceof MailCredentialsError ? error.detail : describeAwsSdkError(error, region);
+      console.error("[mail-secrets] GetSecretValue failed; falling back to env", secretsDetail);
     }
   }
 
@@ -151,5 +181,9 @@ export async function getMailCredentials(
     return fromEnv;
   }
 
-  throw new Error("メール受信用の資格情報を取得できません");
+  throw new MailCredentialsError(
+    "メール受信用の資格情報を取得できません",
+    secretsDetail ??
+      `region=${region}; secretId=${SAAS_MAIL_SECRET_NAME}; name=ConfigMissing; message=Secrets Manager と環境変数のどちらからも取得できません`
+  );
 }
