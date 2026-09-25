@@ -15,25 +15,8 @@ function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
-function textAndUriMessages(
-  text: string,
-  actionUrl?: string | null
-): Array<Record<string, unknown>> {
-  const messages: Array<Record<string, unknown>> = [{ type: "text", text }];
-  const url = actionUrl?.trim() ?? "";
-  if (!/^https?:\/\//i.test(url)) {
-    return messages;
-  }
-  messages.push({
-    type: "template",
-    altText: text.slice(0, 400),
-    template: {
-      type: "buttons",
-      text: "対象のシステムを開きます。",
-      actions: [{ type: "uri", label: "該当SaaSを開く", uri: url }],
-    },
-  });
-  return messages;
+function textMessages(text: string): Array<Record<string, unknown>> {
+  return [{ type: "text", text }];
 }
 
 export function formatInboundLinePushText(
@@ -55,7 +38,7 @@ export function buildLinePushMessages(
   title: string,
   actionUrl?: string | null
 ): Array<Record<string, unknown>> {
-  return textAndUriMessages(formatInboundLinePushText(systemName, title, actionUrl), actionUrl);
+  return textMessages(formatInboundLinePushText(systemName, title, actionUrl));
 }
 
 export function findLinkedLineUserId(
@@ -124,7 +107,7 @@ async function defaultPushMessage(
     },
     body: JSON.stringify({
       to: lineUserId,
-      messages: textAndUriMessages(text, actionUrl),
+      messages: textMessages(text),
     }),
   });
   return response.ok;

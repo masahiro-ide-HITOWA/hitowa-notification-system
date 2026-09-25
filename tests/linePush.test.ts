@@ -74,17 +74,15 @@ describe("sendLinePushIfLinked", () => {
     );
   });
 
-  it("includes actionUrl in text and a URI button message", () => {
+  it("sends a single text message that includes actionUrl", () => {
     const url = "https://p.kaonavi.jp/member/evaluations/2026";
     const messages = buildLinePushMessages("カオナビ", "評価リマインド", url);
-    expect(formatInboundLinePushText("カオナビ", "評価リマインド", url)).toContain(url);
-    expect(messages[1]).toMatchObject({
-      type: "template",
-      template: {
-        type: "buttons",
-        actions: [{ type: "uri", label: "該当SaaSを開く", uri: url }],
-      },
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toEqual({
+      type: "text",
+      text: formatInboundLinePushText("カオナビ", "評価リマインド", url),
     });
+    expect(String(messages[0]?.text)).toContain(url);
   });
 
   it("does not throw when lookup fails", async () => {
