@@ -6,6 +6,7 @@ import { MypageLinkedPanel } from '@/components/mypage-linked-panel';
 import { MypageMailSettingsCard } from '@/components/MypageMailSettingsCard';
 import { MypagePendingCodePanel } from '@/components/mypage-pending-code-panel';
 import { MypageProfileCard } from '@/components/mypage-profile-card';
+import { isLinkedStatusPayload, useLineLinkStatus } from '@/lib/use-line-link-status';
 import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
 
 export default function MyPage() {
@@ -17,7 +18,10 @@ export default function MyPage() {
     expiresAt: string;
     lineAddFriendUrl: string;
   } | null>(null);
-  const [isLinked, setIsLinked] = useState(false);
+  const { isLinked, setIsLinked } = useLineLinkStatus(
+    userProfile.email,
+    userProfile.portalUserId
+  );
   const [isCopied, setIsCopied] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
 
@@ -29,6 +33,7 @@ export default function MyPage() {
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': userProfile.portalUserId,
+          'x-user-email': userProfile.email,
         },
         body: JSON.stringify({
           portalUserId: userProfile.portalUserId,
@@ -54,15 +59,21 @@ export default function MyPage() {
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch('/api/line/check-status?code=' + codeData.oneTimeCode, {
-          headers: {
-            'x-user-id': userProfile.portalUserId,
-            'x-user-email': userProfile.email,
-          },
-        });
-        const data = await res.json();
+        const res = await fetch(
+          '/api/line/check-status?code=' +
+            codeData.oneTimeCode +
+            '&email=' +
+            encodeURIComponent(userProfile.email),
+          {
+            headers: {
+              'x-user-id': userProfile.portalUserId,
+              'x-user-email': userProfile.email,
+            },
+          }
+        );
+        const data: unknown = await res.json();
 
-        if (data.success && data.status === 'COMPLETED') {
+        if (isLinkedStatusPayload(data)) {
           setIsLinked(true);
           clearInterval(intervalId);
         }
@@ -72,7 +83,7 @@ export default function MyPage() {
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [codeData, isLinked]);
+  }, [codeData, isLinked, setIsLinked, userProfile.email, userProfile.portalUserId]);
 
   const handleCopyCode = () => {
     if (!codeData?.oneTimeCode) return;

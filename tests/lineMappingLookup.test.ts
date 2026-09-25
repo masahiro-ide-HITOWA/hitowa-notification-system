@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { isLinkedStatusPayload } from "../apps/web/lib/line-link-status-payload";
 import {
   findLineMapping,
   pendingLineStatus,
@@ -47,6 +48,48 @@ describe("line mapping lookup", () => {
     expect(statusFromMappingItem({ status: "PENDING" }).isLinked).toBe(false);
     expect(statusFromMappingItem({ status: "ACTIVE", lineUserId: "U123" }).isLinked).toBe(true);
     expect(statusFromMappingItem({ status: "DISABLED", lineUserId: "U123" }).isLinked).toBe(false);
+  });
+
+  it("accepts API payloads that the settings UI hydrates on reload", () => {
+    expect(
+      isLinkedStatusPayload({
+        success: true,
+        isLinked: true,
+        status: "COMPLETED",
+        lineUserId: "U123",
+      })
+    ).toBe(true);
+    expect(
+      isLinkedStatusPayload({ success: true, isLinked: false, status: "PENDING", lineUserId: null })
+    ).toBe(false);
+    expect(isLinkedStatusPayload({ success: false })).toBe(false);
+  });
+
+  it("looks up COMPLETED mappings by email or portalUserId after reload", async () => {
+    const items = [
+      {
+        email: "masahiro-ide@gr.hitowa.com",
+        portalUserId: "00400611",
+        oneTimeCode: "123456",
+        status: "COMPLETED",
+        lineUserId: "Uline",
+      },
+    ];
+    const byEmail = await findLineMapping(
+      { email: "masahiro-ide@gr.hitowa.com" },
+      memoryReader(items)
+    );
+    expect(statusFromMappingItem(byEmail).isLinked).toBe(true);
+
+    const byPortal = await findLineMapping(
+      { portalUserId: "00400611" },
+      {
+        ...memoryReader(items),
+        scanByPortalUserId: async (portalUserId) =>
+          items.find((item) => item.portalUserId === portalUserId) ?? null,
+      }
+    );
+    expect(statusFromMappingItem(byPortal).isLinked).toBe(true);
   });
 
   it("looks up by oneTimeCode then by email partition key", async () => {

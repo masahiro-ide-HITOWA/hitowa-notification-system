@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { isLinkedStatusPayload, useLineLinkStatus } from "@/lib/use-line-link-status";
 
 export function LineIntegrationSection() {
   const [loading, setLoading] = useState(false);
@@ -11,19 +12,45 @@ export function LineIntegrationSection() {
     expiresAt: string;
     lineAddFriendUrl: string;
   } | null>(null);
-
-  const [isLinked, setIsLinked] = useState(false);
+  const { isLinked, setIsLinked } = useLineLinkStatus(
+    DEMO_USER_PROFILE.email,
+    DEMO_USER_PROFILE.portalUserId
+  );
 
   const handleIssueCode = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/line/issue-code", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setCodeData(data);
+      const res = await fetch("/api/line/issue-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": DEMO_USER_PROFILE.portalUserId,
+          "x-user-email": DEMO_USER_PROFILE.email,
+        },
+        body: JSON.stringify({
+          portalUserId: DEMO_USER_PROFILE.portalUserId,
+          attributes: DEMO_USER_PROFILE,
+        }),
+      });
+      const data: unknown = await res.json();
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        "success" in data &&
+        data.success === true &&
+        "oneTimeCode" in data &&
+        "expiresAt" in data &&
+        "lineAddFriendUrl" in data
+      ) {
+        const payload = data as {
+          oneTimeCode: string;
+          expiresAt: string;
+          lineAddFriendUrl: string;
+        };
+        setCodeData(payload);
         setIsLinked(false);
       } else {
-        alert("エラー: " + data.error);
+        alert("エラー: コードの発行に失敗しました");
       }
     } catch {
       alert("予期せぬエラーが発生しました");
@@ -37,15 +64,20 @@ export function LineIntegrationSection() {
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch("/api/line/check-status?code=" + codeData.oneTimeCode, {
-          headers: {
-            "x-user-email": DEMO_USER_PROFILE.email,
-            "x-user-id": DEMO_USER_PROFILE.portalUserId,
-          },
-        });
-        const data = await res.json();
-
-        if (data.success && data.status === "COMPLETED") {
+        const res = await fetch(
+          "/api/line/check-status?code=" +
+            codeData.oneTimeCode +
+            "&email=" +
+            encodeURIComponent(DEMO_USER_PROFILE.email),
+          {
+            headers: {
+              "x-user-email": DEMO_USER_PROFILE.email,
+              "x-user-id": DEMO_USER_PROFILE.portalUserId,
+            },
+          }
+        );
+        const data: unknown = await res.json();
+        if (isLinkedStatusPayload(data)) {
           setIsLinked(true);
           clearInterval(intervalId);
         }
@@ -55,7 +87,7 @@ export function LineIntegrationSection() {
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [codeData, isLinked]);
+  }, [codeData, isLinked, setIsLinked]);
 
   return (
     <div style={{ padding: "24px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fff", marginTop: "24px" }}>
@@ -72,7 +104,9 @@ export function LineIntegrationSection() {
         </div>
       ) : !codeData ? (
         <button
-          onClick={handleIssueCode}
+          onClick={() => {
+            void handleIssueCode();
+          }}
           disabled={loading}
           style={{ padding: "10px 20px", background: "#06C755", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" }}
         >

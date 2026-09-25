@@ -179,7 +179,7 @@ const defaultReader: LineMappingReader = {
 };
 
 export async function readLineLinkStatus(
-  params: { code?: string | null; email?: string | null },
+  params: { code?: string | null; email?: string | null; portalUserId?: string | null },
   reader: LineMappingReader = defaultReader
 ): Promise<LineLinkStatusResponse> {
   const item = await findLineMapping(params, reader);

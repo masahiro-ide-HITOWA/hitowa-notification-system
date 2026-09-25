@@ -49,8 +49,9 @@ async function defaultUpdateLink(
     new UpdateCommand({
       TableName: LINE_MAPPING_TABLE,
       Key: key,
-      UpdateExpression: "SET #st = :completed, lineUserId = :uid, linkedAt = :linkedAt",
-      ExpressionAttributeNames: { "#st": "status" },
+      UpdateExpression:
+        "SET #st = :completed, lineUserId = :uid, linkedAt = :linkedAt REMOVE #ttl",
+      ExpressionAttributeNames: { "#st": "status", "#ttl": "ttl" },
       ExpressionAttributeValues: {
         ":completed": "COMPLETED",
         ":uid": lineUserId,
