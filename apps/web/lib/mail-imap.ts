@@ -82,6 +82,12 @@ async function withMailbox<T>(
       throw error;
     }
     const message = error instanceof Error ? error.message : "IMAP connection failed";
+    console.error("[mail-imap] IMAP connection failed", {
+      host: config.imapHost,
+      port: config.imapPort,
+      username: config.username,
+      error,
+    });
     throw new MailImapError("CONNECTION_FAILED", `IMAP接続に失敗しました: ${message}`);
   } finally {
     if (connected) {

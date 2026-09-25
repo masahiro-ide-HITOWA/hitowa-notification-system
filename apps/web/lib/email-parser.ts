@@ -90,6 +90,23 @@ function cleanTitle(subject: string, systemName: NotificationSystemName): string
   return "ポータルからのお知らせ";
 }
 
+export function parsedMailToEmailPayload(parsed: {
+  from?: { text?: string };
+  to?: { text?: string };
+  subject?: string;
+  text?: string | false;
+  html?: string | false;
+}): Record<string, string> {
+  return {
+    from: parsed.from?.text?.trim() ?? "",
+    to: parsed.to?.text?.trim() ?? "",
+    subject: parsed.subject?.trim() ?? "",
+    body:
+      (typeof parsed.text === "string" ? parsed.text : "") ||
+      (typeof parsed.html === "string" ? parsed.html : ""),
+  };
+}
+
 export function parseEmailNotification(payload: unknown): ParseEmailResult {
   if (!isRecord(payload)) {
     return { ok: false, message: "メールペイロードが不正です" };
