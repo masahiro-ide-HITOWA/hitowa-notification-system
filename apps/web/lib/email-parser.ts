@@ -1,4 +1,5 @@
 import { extractActionUrl } from "@/lib/email-action-url";
+import { extractTargetRecipientEmail, stripForwardPrefixes } from "@/lib/email-target-user";
 import type { NotificationSystemName } from "@/lib/notifications";
 
 export interface ParsedEmailNotification {
@@ -75,7 +76,7 @@ function summarizeBody(raw: string): string {
 }
 
 function cleanTitle(subject: string, systemName: NotificationSystemName): string {
-  const stripped = subject
+  const stripped = stripForwardPrefixes(subject)
     .replace(/【カオナビ】/g, "")
     .replace(/【TOKIUM】/g, "")
     .replace(/【クラウドハウス労務】/g, "")
@@ -137,7 +138,7 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
 
   const from =
     firstAddress(payload.from) ?? firstAddress(payload.sender) ?? "";
-  const recipientEmail =
+  const headerTo =
     firstAddress(payload.recipientEmail) ??
     firstAddress(payload.to) ??
     firstAddress(payload.recipient);
@@ -147,6 +148,7 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
     readNonEmptyString(payload.text) ??
     readNonEmptyString(payload.html) ??
     "";
+  const recipientEmail = extractTargetRecipientEmail(subject, rawBody, headerTo);
 
   if (!recipientEmail) {
     return { ok: false, message: "宛先メールアドレスを特定できません" };

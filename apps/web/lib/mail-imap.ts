@@ -31,6 +31,7 @@ export interface ImapClientLike {
     query: { source: boolean; envelope: boolean; uid: boolean },
     options: { uid: boolean }
   ): Promise<MailFetchedLike | false>;
+  search?(query: { seen?: boolean; all?: boolean }): Promise<number[]>;
 }
 
 export interface MailImapDeps {

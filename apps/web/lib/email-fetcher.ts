@@ -1,83 +1,50 @@
-import { ImapFlow } from "imapflow";
-import { simpleParser } from "mailparser";
-import { parseEmailNotification, parsedMailToEmailPayload, addressLikeToText, type ParsedEmailNotification } from "@/lib/email-parser";
-import { isImapSecure } from "@/lib/mail-config";
 import { type ImapClientLike } from "@/lib/mail-imap";
 import { latestSequenceRange, MailImapError, type MailFetchedLike } from "@/lib/mail-imap-model";
 import {
-  getMailCredentials,
-  toMailConfigInput,
-  type MailCredentials,
-} from "@/lib/secrets";
+  createSaasImapClient,
+  isSeenFlag,
+  loadFetchedMessage,
+  parseFetchedSource,
+  searchMailboxUids,
+} from "@/lib/email-fetcher-imap";
+import { getMailCredentials, type MailCredentials } from "@/lib/secrets";
+import type { ParsedEmailNotification } from "@/lib/email-parser";
 
 export interface EmailFetcherDeps {
   getCredentials: () => Promise<MailCredentials>;
   createClient: (credentials: MailCredentials) => ImapClientLike;
 }
 
-function defaultCreateClient(credentials: MailCredentials): ImapClientLike {
-  const config = toMailConfigInput(credentials);
-  const client = new ImapFlow({
-    host: config.imapHost,
-    port: config.imapPort,
-    secure: isImapSecure(config.imapPort),
-    connectionTimeout: 30000,
-    auth: { user: config.username, pass: config.password },
-    logger: false,
-  });
-  return client as unknown as ImapClientLike;
+export interface SaasInboxParseError {
+  uid: number;
+  message: string;
+}
+
+export interface SaasInboxFetchReport {
+  mailboxExists: number;
+  unseenCount: number | null;
+  seenCount: number | null;
+  fetched: number;
+  notifications: ParsedEmailNotification[];
+  parseErrors: SaasInboxParseError[];
 }
 
 const defaultDeps: EmailFetcherDeps = {
   getCredentials: () => getMailCredentials(),
-  createClient: defaultCreateClient,
+  createClient: createSaasImapClient,
 };
 
-async function parseFetchedSource(
-  message: MailFetchedLike
-): Promise<ParsedEmailNotification | null> {
-  if (!message.source) {
-    return null;
-  }
-  try {
-    const parsed = await simpleParser(message.source);
-    const result = parseEmailNotification(
-      parsedMailToEmailPayload({
-        from: { text: addressLikeToText(parsed.from) },
-        to: { text: addressLikeToText(parsed.to) },
-        subject: parsed.subject,
-        text: typeof parsed.text === "string" ? parsed.text : false,
-        html: typeof parsed.html === "string" ? parsed.html : false,
-      })
-    );
-    if (!result.ok) {
-      console.error("[email-fetcher] skip unparsable mail", {
-        uid: message.uid,
-        message: result.message,
-      });
-      return null;
-    }
-    return result.notification;
-  } catch (error) {
-    console.error("[email-fetcher] mail parse failed", { uid: message.uid, error });
-    return null;
-  }
-}
-
-export async function fetchSaasInboxEmails(
+export async function fetchSaasInboxReport(
   folder = "INBOX",
   limit = 20,
   deps: EmailFetcherDeps = defaultDeps
-): Promise<ParsedEmailNotification[]> {
+): Promise<SaasInboxFetchReport> {
   let credentials: MailCredentials;
   try {
     credentials = await deps.getCredentials();
   } catch (error) {
     console.error("[email-fetcher] credentials unavailable", error);
-    throw new MailImapError(
-      "CONFIG_MISSING",
-      "メール受信用の資格情報を取得できません"
-    );
+    throw new MailImapError("CONFIG_MISSING", "メール受信用の資格情報を取得できません");
   }
 
   const client = deps.createClient(credentials);
@@ -87,38 +54,7 @@ export async function fetchSaasInboxEmails(
     connected = true;
     const lock = await client.getMailboxLock(folder);
     try {
-      const exists = client.mailbox === false ? 0 : client.mailbox.exists;
-      const range = latestSequenceRange(exists, limit);
-      if (!range) {
-        return [];
-      }
-      const notifications: ParsedEmailNotification[] = [];
-      for await (const message of client.fetch(range, {
-        uid: true,
-        envelope: true,
-        flags: true,
-      })) {
-        if (!message.source) {
-          const full = await client.fetchOne(
-            String(message.uid),
-            { source: true, envelope: true, uid: true },
-            { uid: true }
-          );
-          if (!full) {
-            continue;
-          }
-          const notification = await parseFetchedSource(full);
-          if (notification) {
-            notifications.push(notification);
-          }
-          continue;
-        }
-        const notification = await parseFetchedSource(message);
-        if (notification) {
-          notifications.push(notification);
-        }
-      }
-      return notifications;
+      return await collectInboxMessages(client, limit);
     } finally {
       lock.release();
     }
@@ -143,4 +79,67 @@ export async function fetchSaasInboxEmails(
       }
     }
   }
+}
+
+async function collectInboxMessages(client: ImapClientLike, limit: number): Promise<SaasInboxFetchReport> {
+  const mailboxExists = client.mailbox === false ? 0 : client.mailbox.exists;
+  const unseenIds = await searchMailboxUids(client, { seen: false });
+  const seenIds = await searchMailboxUids(client, { seen: true });
+  console.log("[email-fetcher] imap search (includes SEEN / forwarded)", {
+    mailboxExists,
+    unseenCount: unseenIds?.length ?? null,
+    seenCount: seenIds?.length ?? null,
+  });
+
+  const fromSearch = [...new Set([...(unseenIds ?? []), ...(seenIds ?? [])])].sort((a, b) => a - b);
+  const uids = fromSearch.length > 0 ? fromSearch.slice(-limit) : [];
+  const notifications: ParsedEmailNotification[] = [];
+  const parseErrors: SaasInboxParseError[] = [];
+
+  const consume = async (message: MailFetchedLike) => {
+    console.log("[email-fetcher] message flags", { uid: message.uid, seen: isSeenFlag(message.flags) });
+    const full = await loadFetchedMessage(client, message);
+    if (!full) {
+      parseErrors.push({ uid: message.uid, message: "fetchOne returned empty" });
+      return;
+    }
+    const parsed = await parseFetchedSource(full);
+    if (parsed.ok) {
+      notifications.push(parsed.notification);
+      return;
+    }
+    console.error("[email-fetcher] skip unparsable mail", { uid: full.uid, message: parsed.message });
+    parseErrors.push({ uid: full.uid, message: parsed.message });
+  };
+
+  if (uids.length > 0) {
+    for (const uid of uids) {
+      await consume({ uid });
+    }
+  } else {
+    const range = latestSequenceRange(mailboxExists, limit);
+    if (range) {
+      for await (const message of client.fetch(range, { uid: true, envelope: true, flags: true })) {
+        await consume(message);
+      }
+    }
+  }
+
+  return {
+    mailboxExists,
+    unseenCount: unseenIds?.length ?? null,
+    seenCount: seenIds?.length ?? null,
+    fetched: notifications.length + parseErrors.length,
+    notifications,
+    parseErrors,
+  };
+}
+
+export async function fetchSaasInboxEmails(
+  folder = "INBOX",
+  limit = 20,
+  deps: EmailFetcherDeps = defaultDeps
+): Promise<ParsedEmailNotification[]> {
+  const report = await fetchSaasInboxReport(folder, limit, deps);
+  return report.notifications;
 }

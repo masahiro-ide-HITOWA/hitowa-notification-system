@@ -72,6 +72,21 @@ describe("parseEmailNotification", () => {
     });
     expect(parsed.ok).toBe(false);
   });
+
+  it("resolves TOKIUM forwarded mail to the demo portal user", () => {
+    const parsed = parseEmailNotification({
+      from: "boss@hitowa.com",
+      to: "saas-inbox@kagoya.jp",
+      subject: "Fwd: 【TOKIUM】経費承認依頼",
+      body: "転送します。宛先: masahiro-ide@hitowa.com\n社員番号：00400611\n承認待ちです。",
+    });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.notification.systemName).toBe("TOKIUM");
+      expect(parsed.notification.recipientEmail).toBe("masahiro-ide@hitowa.com");
+      expect(parsed.notification.title).toBe("経費承認依頼");
+    }
+  });
 });
 
 describe("email notification persistence helpers", () => {

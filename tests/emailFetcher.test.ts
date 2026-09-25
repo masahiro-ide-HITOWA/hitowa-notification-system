@@ -74,6 +74,22 @@ describe("fetchSaasInboxEmails", () => {
     );
   });
 
+  it("fetches SEEN messages when IMAP search is available", async () => {
+    const raw = Buffer.from(
+      "From: alert@tokium.jp\r\nTo: saas-inbox@kagoya.jp\r\nSubject: 転送: 【TOKIUM】承認依頼\r\n\r\n社員番号: 00400611 の申請です"
+    );
+    const notifications = await fetchSaasInboxEmails("INBOX", 20, {
+      getCredentials: async () => credentials,
+      createClient: () => ({
+        ...mockClient(new Map([[7, raw]])),
+        mailbox: { exists: 7 },
+        search: async (query) => (query.seen ? [7] : []),
+      }),
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]?.systemName).toBe("TOKIUM");
+    expect(notifications[0]?.recipientEmail).toBe("masahiro-ide@hitowa.com");
+  });
   it("throws CONFIG_MISSING when credentials cannot be loaded", async () => {
     await expect(
       fetchSaasInboxEmails("INBOX", 20, {

@@ -1,30 +1,7 @@
 import { NextResponse } from "next/server";
-import { PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "node:crypto";
-import { docClient } from "@/lib/dynamodb";
 import { parseEmailNotification } from "@/lib/email-parser";
-import {
-  createNotificationFromEmail,
-  isDynamoTableMissing,
-  isDynamoValidationError,
-  logEmailWebhookError,
-  resolvePortalUserIdFromMappings,
-  shouldSkipLinePushForMappings,
-} from "@/lib/email-notification";
-import { sendLinePushIfLinked } from "@/lib/line-push";
-
-const USER_TABLE =
-  process.env.DYNAMODB_TABLE_NAME || process.env.DYNAMODB_USER_TABLE || "HitowaUserMappings";
-const NOTIFICATION_TABLE =
-  process.env.DYNAMODB_NOTIFICATION_TABLE || "HitowaNotifications";
-
-const USER_EMAIL_SCAN = {
-  FilterExpression: "#attr.#email = :email",
-  ExpressionAttributeNames: {
-    "#attr": "attributes",
-    "#email": "email",
-  },
-} as const;
+import { ingestParsedEmailNotification } from "@/lib/email-ingest";
+import { isDynamoTableMissing, logEmailWebhookError } from "@/lib/email-notification";
 
 async function readJsonBody(request: Request): Promise<unknown | null> {
   try {
@@ -33,40 +10,6 @@ async function readJsonBody(request: Request): Promise<unknown | null> {
     logEmailWebhookError("[email webhook] JSON parse failed", error);
     return null;
   }
-}
-
-async function scanUserMappings(recipientEmail: string): Promise<unknown[]> {
-  try {
-    const filtered = await docClient.send(
-      new ScanCommand({
-        TableName: USER_TABLE,
-        ...USER_EMAIL_SCAN,
-        ExpressionAttributeValues: { ":email": recipientEmail },
-      })
-    );
-    return filtered.Items ?? [];
-  } catch (error) {
-    if (isDynamoTableMissing(error)) {
-      throw error;
-    }
-    if (isDynamoValidationError(error)) {
-      logEmailWebhookError("[email webhook] email FilterExpression failed; scanning without filter", error);
-      const fallback = await docClient.send(new ScanCommand({ TableName: USER_TABLE }));
-      return fallback.Items ?? [];
-    }
-    throw error;
-  }
-}
-
-function tableMissingResponse(tableName: string): NextResponse {
-  return NextResponse.json(
-    {
-      success: false,
-      message: `DynamoDB テーブルが存在しません: ${tableName}`,
-      table: tableName,
-    },
-    { status: 404 }
-  );
 }
 
 export async function POST(request: Request) {
@@ -84,69 +27,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: parsed.message }, { status: 400 });
     }
 
-    let mappingItems: unknown[];
-    try {
-      mappingItems = await scanUserMappings(parsed.notification.recipientEmail);
-    } catch (error) {
-      logEmailWebhookError("[email webhook] HitowaUserMappings scan failed", error);
-      if (isDynamoTableMissing(error)) {
-        return tableMissingResponse(USER_TABLE);
-      }
-      throw error;
+    const ingested = await ingestParsedEmailNotification(parsed.notification);
+    if (!ingested.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: ingested.message,
+          ...(ingested.table ? { table: ingested.table } : {}),
+        },
+        { status: ingested.status }
+      );
     }
 
-    const portalUserId = resolvePortalUserIdFromMappings(
-      mappingItems,
-      parsed.notification.recipientEmail
-    );
-    if (!portalUserId) {
+    return NextResponse.json({ success: true, notificationId: ingested.notificationId });
+  } catch (error) {
+    logEmailWebhookError("[email webhook] unhandled error", error);
+    if (isDynamoTableMissing(error)) {
       return NextResponse.json(
-        { success: false, message: "宛先メールに対応するユーザーが見つかりません" },
+        { success: false, message: "DynamoDB テーブルが存在しません" },
         { status: 404 }
       );
     }
-
-    const notificationId = randomUUID();
-    const notification = createNotificationFromEmail(
-      parsed.notification,
-      portalUserId,
-      notificationId,
-      new Date().toISOString()
-    );
-
-    try {
-      await docClient.send(
-        new PutCommand({
-          TableName: NOTIFICATION_TABLE,
-          Item: notification,
-        })
-      );
-    } catch (error) {
-      logEmailWebhookError("[email webhook] HitowaNotifications put failed", error);
-      if (isDynamoTableMissing(error)) {
-        return tableMissingResponse(NOTIFICATION_TABLE);
-      }
-      throw error;
-    }
-
-    try {
-      if (shouldSkipLinePushForMappings(mappingItems, portalUserId)) {
-        logEmailWebhookError(
-          "[email webhook] skip LINE push for inactive or disabled user",
-          portalUserId
-        );
-      } else {
-        await sendLinePushIfLinked(portalUserId, notification.systemName, notification.title, {
-          actionUrl: notification.actionUrl,
-        });
-      }
-    } catch (error) {
-      logEmailWebhookError("[email webhook] LINE push failed", error);
-    }
-
-    return NextResponse.json({ success: true, notificationId });
-  } catch (error) {
-    logEmailWebhookError("[email webhook] unhandled error", error);
     return NextResponse.json(
       { success: false, message: "メール通知の取り込みに失敗しました" },
       { status: 500 }
