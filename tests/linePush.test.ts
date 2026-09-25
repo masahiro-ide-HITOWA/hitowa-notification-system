@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildLinePushMessages,
   findLinkedLineUserId,
   formatInboundLinePushText,
   sendLinePushIfLinked,
@@ -68,8 +69,22 @@ describe("sendLinePushIfLinked", () => {
     expect(result).toEqual({ sent: true, lineUserId: "U-linked" });
     expect(pushMessage).toHaveBeenCalledWith(
       "U-linked",
-      formatInboundLinePushText("カオナビ", "評価リマインド")
+      formatInboundLinePushText("カオナビ", "評価リマインド"),
+      undefined
     );
+  });
+
+  it("includes actionUrl in text and a URI button message", () => {
+    const url = "https://p.kaonavi.jp/member/evaluations/2026";
+    const messages = buildLinePushMessages("カオナビ", "評価リマインド", url);
+    expect(formatInboundLinePushText("カオナビ", "評価リマインド", url)).toContain(url);
+    expect(messages[1]).toMatchObject({
+      type: "template",
+      template: {
+        type: "buttons",
+        actions: [{ type: "uri", label: "該当SaaSを開く", uri: url }],
+      },
+    });
   });
 
   it("does not throw when lookup fails", async () => {

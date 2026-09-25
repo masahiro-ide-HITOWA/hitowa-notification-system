@@ -13,7 +13,7 @@ describe("parseEmailNotification", () => {
       from: "noreply@kaonavi.jp",
       to: "mei-sei@hitowa.com",
       subject: "【カオナビ】評価シート提出のお願い",
-      body: "評価シートの提出期限が近づいています。",
+      body: "評価シートの提出期限が近づいています。 https://p.kaonavi.jp/member/evaluations/2026",
     });
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
@@ -21,6 +21,7 @@ describe("parseEmailNotification", () => {
       expect(parsed.notification.recipientEmail).toBe("mei-sei@hitowa.com");
       expect(parsed.notification.title).toBe("評価シート提出のお願い");
       expect(parsed.notification.body).toContain("提出期限");
+      expect(parsed.notification.actionUrl).toBe("https://p.kaonavi.jp/member/evaluations/2026");
     }
   });
 
@@ -111,7 +112,7 @@ describe("email notification persistence helpers", () => {
       from: "noreply@kaonavi.jp",
       to: "mei-sei@hitowa.com",
       subject: "【カオナビ】リマインド",
-      body: "提出してください。",
+      body: "提出してください。 https://p.kaonavi.jp/open",
     });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) {
@@ -123,12 +124,12 @@ describe("email notification persistence helpers", () => {
       "ntf-test-1",
       "2026-09-18T01:00:00.000Z"
     );
-    expect(item).toEqual({
+    expect(item.actionUrl).toBe("https://p.kaonavi.jp/open");
+    expect(item).toMatchObject({
       id: "ntf-test-1",
       portalUserId: "00400611",
       systemName: "カオナビ",
       title: "リマインド",
-      body: "提出してください。",
       isRead: false,
       createdAt: "2026-09-18T01:00:00.000Z",
     });

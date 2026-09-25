@@ -1,5 +1,7 @@
 export const LINE_WEBHOOK_LOG_TAG = "[line-webhook]";
-export const RECENT_LOG_WINDOW_MS = 10 * 60 * 1000;
+export const RECENT_LOG_WINDOW_MS = 60 * 60 * 1000;
+
+export const SSR_LOG_GROUP_PREFIXES = ["/aws/lambda/", "/aws/spitfire/", "/aws/amplify/"] as const;
 
 export interface LogGroupSummary {
   logGroupName: string;
@@ -16,18 +18,32 @@ export function isRecentlyActive(lastEventTime: number | undefined, nowMs: numbe
   return typeof lastEventTime === "number" && nowMs - lastEventTime <= RECENT_LOG_WINDOW_MS;
 }
 
+export function isSsrComputeLogGroup(logGroupName: string): boolean {
+  const name = logGroupName.toLowerCase();
+  return (
+    name.includes("amplify") ||
+    name.includes("spitfire") ||
+    name.includes("hitowa") ||
+    name.startsWith("/aws/lambda/") ||
+    name.startsWith("/aws/spitfire/") ||
+    name.startsWith("/aws/amplify/")
+  );
+}
+
 export function lineWebhookFilterPattern(): string {
   return `"${LINE_WEBHOOK_LOG_TAG}"`;
 }
 
 export function selectTargetLogGroups(groups: LogGroupSummary[], nowMs: number): LogGroupSummary[] {
-  const recent = groups
-    .filter((group) => isRecentlyActive(group.lastEventTime, nowMs))
-    .sort((a, b) => (b.lastEventTime ?? 0) - (a.lastEventTime ?? 0));
-  if (recent.length > 0) {
-    return recent;
+  const selected = new Map<string, LogGroupSummary>();
+  for (const group of groups) {
+    if (isRecentlyActive(group.lastEventTime, nowMs) || isSsrComputeLogGroup(group.logGroupName)) {
+      selected.set(group.logGroupName, group);
+    }
   }
-  return groups.filter((group) => /amplify/i.test(group.logGroupName)).slice(0, 30);
+  return [...selected.values()]
+    .sort((a, b) => (b.lastEventTime ?? 0) - (a.lastEventTime ?? 0))
+    .slice(0, 50);
 }
 
 export function formatLogEvent(event: LineWebhookLogEvent): string {

@@ -12,6 +12,7 @@ export interface NotificationItem {
   body: string;
   isRead: boolean;
   createdAt: string;
+  actionUrl?: string;
 }
 
 const MOCK_NOTIFICATIONS: NotificationItem[] = [
@@ -108,19 +109,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function readOptionalActionUrl(value: { actionUrl?: unknown; url?: unknown }): string | undefined {
+  const raw = value.actionUrl ?? value.url;
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : undefined;
+}
+
 export function isNotificationItem(value: unknown): value is NotificationItem {
   if (!isRecord(value)) {
     return false;
   }
-  return (
+  const required =
     typeof value.id === "string" &&
     typeof value.portalUserId === "string" &&
     isNotificationSystemName(value.systemName) &&
     typeof value.title === "string" &&
     typeof value.body === "string" &&
     typeof value.isRead === "boolean" &&
-    typeof value.createdAt === "string"
-  );
+    typeof value.createdAt === "string";
+  if (!required) {
+    return false;
+  }
+  if (value.actionUrl !== undefined && typeof value.actionUrl !== "string") {
+    return false;
+  }
+  return true;
 }
 
 export function parseNotificationList(value: unknown): NotificationItem[] | null {
@@ -132,7 +148,8 @@ export function parseNotificationList(value: unknown): NotificationItem[] | null
     if (!isNotificationItem(entry)) {
       return null;
     }
-    items.push(entry);
+    const actionUrl = readOptionalActionUrl(entry);
+    items.push(actionUrl ? { ...entry, actionUrl } : entry);
   }
   return items;
 }
@@ -156,5 +173,6 @@ export function notificationsFromDynamoItems(
   if (!items) {
     return [];
   }
-  return sortNotificationsByCreatedAtDesc(items.filter(isNotificationItem));
+  const parsed = parseNotificationList(items.filter(isNotificationItem));
+  return parsed ? sortNotificationsByCreatedAtDesc(parsed) : [];
 }

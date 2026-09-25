@@ -68,6 +68,7 @@ export function createNotificationFromEmail(
     body: parsed.body,
     isRead: false,
     createdAt,
+    ...(parsed.actionUrl ? { actionUrl: parsed.actionUrl } : {}),
   };
 }
 

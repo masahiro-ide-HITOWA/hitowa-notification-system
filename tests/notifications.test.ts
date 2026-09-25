@@ -68,6 +68,22 @@ describe("notifications", () => {
     expect(items.map((item) => item.id)).toEqual(["new", "old"]);
   });
 
+  it("maps DynamoDB url onto actionUrl", () => {
+    const items = notificationsFromDynamoItems([
+      {
+        id: "new",
+        portalUserId: "00400611",
+        systemName: "カオナビ",
+        title: "新しい",
+        body: "new",
+        isRead: false,
+        createdAt: "2026-09-18T00:00:00.000Z",
+        url: "https://p.kaonavi.jp/x",
+      },
+    ]);
+    expect(items[0]?.actionUrl).toBe("https://p.kaonavi.jp/x");
+  });
+
   it("returns an empty list when DynamoDB has no matching items", () => {
     expect(notificationsFromDynamoItems([])).toEqual([]);
     expect(notificationsFromDynamoItems(undefined)).toEqual([]);

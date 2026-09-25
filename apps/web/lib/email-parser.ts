@@ -1,3 +1,4 @@
+import { extractActionUrl } from "@/lib/email-action-url";
 import type { NotificationSystemName } from "@/lib/notifications";
 
 export interface ParsedEmailNotification {
@@ -5,6 +6,7 @@ export interface ParsedEmailNotification {
   recipientEmail: string;
   title: string;
   body: string;
+  actionUrl?: string;
 }
 
 export type ParseEmailResult =
@@ -114,6 +116,7 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
   }
 
   const systemName = detectNotificationSystemName(from, subject, rawBody);
+  const actionUrl = extractActionUrl(`${subject}\n${rawBody}`, systemName);
   return {
     ok: true,
     notification: {
@@ -121,6 +124,7 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
       recipientEmail,
       title: cleanTitle(subject, systemName),
       body: summarizeBody(rawBody || subject),
+      ...(actionUrl ? { actionUrl } : {}),
     },
   };
 }

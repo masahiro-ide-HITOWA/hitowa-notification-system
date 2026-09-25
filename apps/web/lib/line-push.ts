@@ -15,17 +15,47 @@ function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
+function textAndUriMessages(
+  text: string,
+  actionUrl?: string | null
+): Array<Record<string, unknown>> {
+  const messages: Array<Record<string, unknown>> = [{ type: "text", text }];
+  const url = actionUrl?.trim() ?? "";
+  if (!/^https?:\/\//i.test(url)) {
+    return messages;
+  }
+  messages.push({
+    type: "template",
+    altText: text.slice(0, 400),
+    template: {
+      type: "buttons",
+      text: "対象のシステムを開きます。",
+      actions: [{ type: "uri", label: "該当SaaSを開く", uri: url }],
+    },
+  });
+  return messages;
+}
+
 export function formatInboundLinePushText(
   systemName: NotificationSystemName | string,
-  title: string
+  title: string,
+  actionUrl?: string | null
 ): string {
-  return [
-    `【新着通知】${systemName}`,
-    "------------------",
-    title,
-    "",
-    "※詳細はマイ通知画面よりご確認ください。",
-  ].join("\n");
+  const lines = [`【新着通知】${systemName}`, "------------------", title];
+  if (actionUrl && actionUrl.trim() !== "") {
+    lines.push("", actionUrl.trim(), "", "※上のリンクから対象システムを開けます。");
+    return lines.join("\n");
+  }
+  lines.push("", "※詳細はマイ通知画面よりご確認ください。");
+  return lines.join("\n");
+}
+
+export function buildLinePushMessages(
+  systemName: NotificationSystemName | string,
+  title: string,
+  actionUrl?: string | null
+): Array<Record<string, unknown>> {
+  return textAndUriMessages(formatInboundLinePushText(systemName, title, actionUrl), actionUrl);
 }
 
 export function findLinkedLineUserId(
@@ -56,9 +86,10 @@ export type LinePushResult =
   | { sent: false; reason: LinePushSkipReason };
 
 export interface LinePushDependencies {
-  scanMappings: (portalUserId: string) => Promise<unknown[]>;
-  pushMessage: (lineUserId: string, text: string) => Promise<boolean>;
-  channelAccessToken: string | undefined;
+  scanMappings?: (portalUserId: string) => Promise<unknown[]>;
+  pushMessage?: (lineUserId: string, text: string, actionUrl?: string | null) => Promise<boolean>;
+  channelAccessToken?: string | undefined;
+  actionUrl?: string | null;
 }
 
 async function defaultScanMappings(portalUserId: string): Promise<unknown[]> {
@@ -76,7 +107,11 @@ async function defaultScanMappings(portalUserId: string): Promise<unknown[]> {
   return result.Items ?? [];
 }
 
-async function defaultPushMessage(lineUserId: string, text: string): Promise<boolean> {
+async function defaultPushMessage(
+  lineUserId: string,
+  text: string,
+  actionUrl?: string | null
+): Promise<boolean> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) {
     return false;
@@ -89,7 +124,7 @@ async function defaultPushMessage(lineUserId: string, text: string): Promise<boo
     },
     body: JSON.stringify({
       to: lineUserId,
-      messages: [{ type: "text", text }],
+      messages: textAndUriMessages(text, actionUrl),
     }),
   });
   return response.ok;
@@ -116,8 +151,9 @@ export async function sendLinePushIfLinked(
       return { sent: false, reason: "no-token" };
     }
 
-    const text = formatInboundLinePushText(systemName, title);
-    const ok = await pushMessage(lineUserId, text);
+    const actionUrl = deps?.actionUrl;
+    const text = formatInboundLinePushText(systemName, title, actionUrl);
+    const ok = await pushMessage(lineUserId, text, actionUrl);
     if (!ok) {
       return { sent: false, reason: "push-failed" };
     }

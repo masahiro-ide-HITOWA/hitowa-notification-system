@@ -9,6 +9,7 @@ import {
   lineWebhookFilterPattern,
   RECENT_LOG_WINDOW_MS,
   selectTargetLogGroups,
+  SSR_LOG_GROUP_PREFIXES,
   type LineWebhookLogEvent,
   type LogGroupSummary,
 } from "./line-webhook-log-query";
@@ -23,12 +24,16 @@ function toSummary(group: LogGroup): LogGroupSummary | null {
   return { logGroupName, lastEventTime: group.lastEventTime };
 }
 
-async function listLogGroups(client: CloudWatchLogsClient): Promise<LogGroupSummary[]> {
+async function listLogGroupsByPrefix(
+  client: CloudWatchLogsClient,
+  logGroupNamePrefix?: string
+): Promise<LogGroupSummary[]> {
   const groups: LogGroupSummary[] = [];
   let nextToken: string | undefined;
   do {
     const page = await client.send(
       new DescribeLogGroupsCommand({
+        logGroupNamePrefix,
         nextToken,
         limit: 50,
       })
@@ -41,8 +46,19 @@ async function listLogGroups(client: CloudWatchLogsClient): Promise<LogGroupSumm
     }
     nextToken = page.nextToken;
   } while (nextToken);
-
   return groups;
+}
+
+async function listLogGroups(client: CloudWatchLogsClient): Promise<LogGroupSummary[]> {
+  const pages = await Promise.all([
+    listLogGroupsByPrefix(client),
+    ...SSR_LOG_GROUP_PREFIXES.map((prefix) => listLogGroupsByPrefix(client, prefix)),
+  ]);
+  const byName = new Map<string, LogGroupSummary>();
+  for (const group of pages.flat()) {
+    byName.set(group.logGroupName, group);
+  }
+  return [...byName.values()];
 }
 
 async function readTaggedEvents(
@@ -82,7 +98,7 @@ export async function fetchLatestLineWebhookLogs(
   const startTime = nowMs - RECENT_LOG_WINDOW_MS;
   const groups = selectTargetLogGroups(await listLogGroups(client), nowMs);
   if (groups.length === 0) {
-    console.error("[get-latest-logs] no recently updated or Amplify log groups found");
+    console.error("[get-latest-logs] no recently updated or SSR compute log groups found");
     return [];
   }
 
@@ -93,7 +109,7 @@ export async function fetchLatestLineWebhookLogs(
 }
 
 async function main(): Promise<void> {
-  console.log(`[get-latest-logs] region=${region} window=10m tag=[line-webhook]`);
+  console.log(`[get-latest-logs] region=${region} window=60m tag=[line-webhook]`);
   const events = await fetchLatestLineWebhookLogs();
   if (events.length === 0) {
     console.log("[get-latest-logs] no matching events");

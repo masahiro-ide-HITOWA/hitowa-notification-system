@@ -159,6 +159,17 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
               </div>
               <h3 className="text-sm font-bold text-slate-900">{item.title}</h3>
               <p className="text-xs text-slate-600 leading-relaxed">{item.body}</p>
+              {item.actionUrl && (
+                <a
+                  href={item.actionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  className="inline-flex items-center mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                >
+                  該当SaaSを開く ➔
+                </a>
+              )}
             </article>
           ))}
       </div>

@@ -129,11 +129,9 @@ export async function POST(request: Request) {
     }
 
     try {
-      await sendLinePushIfLinked(
-        portalUserId,
-        notification.systemName,
-        notification.title
-      );
+      await sendLinePushIfLinked(portalUserId, notification.systemName, notification.title, {
+        actionUrl: notification.actionUrl,
+      });
     } catch (error) {
       logEmailWebhookError("[email webhook] LINE push failed", error);
     }

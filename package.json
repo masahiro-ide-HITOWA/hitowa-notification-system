@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "logs:line-webhook": "tsx scripts/get-latest-logs.ts"
+    "logs:line-webhook": "tsx scripts/get-latest-logs.ts",
+    "check:mapping": "tsx scripts/check-user-mapping.ts"
   },
   "keywords": [],
   "author": "",
