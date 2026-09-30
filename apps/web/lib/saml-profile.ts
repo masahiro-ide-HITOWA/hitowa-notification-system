@@ -1,5 +1,4 @@
 import {
-  DEMO_USER_PROFILE,
   FALLBACK_SAML_ATTRIBUTES,
   type PortalUserProfile,
 } from "@/lib/saml-user-attributes";
@@ -28,10 +27,9 @@ export function profileFromSamlAttributes(profile: Record<string, unknown>): Por
       "mail",
       "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
       "nameID",
-    ]) ?? DEMO_USER_PROFILE.email;
+    ]) ?? "";
   const portalUserId =
-    firstString(profile, ["employeeNumber", "employee_id", "EmployeeNumber", "nameID"]) ??
-    DEMO_USER_PROFILE.portalUserId;
+    firstString(profile, ["employeeNumber", "employee_id", "EmployeeNumber", "nameID"]) ?? "";
   const divisionName =
     firstString(profile, ["department", "divisionName", "Department"]) ??
     FALLBACK_SAML_ATTRIBUTES.divisionName;
@@ -40,11 +38,15 @@ export function profileFromSamlAttributes(profile: Record<string, unknown>): Por
     FALLBACK_SAML_ATTRIBUTES.name;
 
   return {
-    ...DEMO_USER_PROFILE,
     portalUserId,
     email,
     name,
     divisionName,
+    companyCode: FALLBACK_SAML_ATTRIBUTES.companyCode,
+    companyName: FALLBACK_SAML_ATTRIBUTES.companyName,
+    officeCode: FALLBACK_SAML_ATTRIBUTES.officeCode,
+    positionCode: FALLBACK_SAML_ATTRIBUTES.positionCode,
+    employmentCode: FALLBACK_SAML_ATTRIBUTES.employmentCode,
   };
 }
 

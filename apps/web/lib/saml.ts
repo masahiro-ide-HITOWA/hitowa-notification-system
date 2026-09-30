@@ -8,6 +8,11 @@ export {
   SAML_LOGIN_PATH,
   SAML_METADATA_PATH,
 } from "@/lib/auth-mode";
+export {
+  absoluteUrlFromRequest,
+  resolveRequestOrigin,
+  samlLoginAbsoluteUrl,
+} from "@/lib/request-origin";
 
 export interface SamlEnvConfig {
   entryPoint: string;
@@ -67,6 +72,7 @@ export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
     audience: config.issuer,
     wantAssertionsSigned: true,
     wantAuthnResponseSigned: false,
+    forceAuthn: true,
     identifierFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
   }) as unknown as SamlClientLike;
 }

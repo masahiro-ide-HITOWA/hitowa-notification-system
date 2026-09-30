@@ -15,6 +15,7 @@ import {
 } from "../apps/web/lib/saml";
 import { profileFromSamlAttributes, samlBodyFromRequestData } from "../apps/web/lib/saml-profile";
 import { DEMO_USER_PROFILE } from "../apps/web/lib/saml-user-attributes";
+import { originFromEnv, resolveRequestOrigin, samlLoginAbsoluteUrl } from "../apps/web/lib/request-origin";
 
 const samlEnv = {
   USE_MOCK_AUTH: "false",
@@ -71,6 +72,19 @@ describe("profileFromSamlAttributes", () => {
       divisionName: "営業部",
       name: "現場太郎",
     });
+  });
+
+  it("does not keep the demo identity when switching accounts", () => {
+    expect(
+      profileFromSamlAttributes({
+        email: "other@hitowa.com",
+        employeeNumber: "99999999",
+      })
+    ).toMatchObject({
+      email: "other@hitowa.com",
+      portalUserId: "99999999",
+    });
+    expect(profileFromSamlAttributes({ email: "only@hitowa.com" }).portalUserId).toBe("");
   });
 });
 
@@ -144,11 +158,53 @@ describe("SAML routes with mock auth", () => {
     expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
     expect(getRes.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
 
-    const postRes = logoutPost();
+    const postRes = logoutPost(new Request("http://localhost/api/auth/logout", { method: "POST" }));
     expect(postRes.status).toBe(200);
     expect(await postRes.json()).toEqual({
       success: true,
       loginPath: "/api/auth/saml/login",
+      loginUrl: "http://localhost/api/auth/saml/login",
     });
+  });
+
+  it("logout redirects using the forwarded Amplify host instead of localhost", async () => {
+    const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
+    const getRes = logoutGet(
+      new Request("http://localhost:3000/api/auth/logout", {
+        headers: {
+          host: "main.d17na73qopyazf.amplifyapp.com",
+          "x-forwarded-proto": "https",
+        },
+      })
+    );
+    expect(getRes.headers.get("location")).toBe(
+      "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
+    );
+  });
+});
+
+describe("resolveRequestOrigin", () => {
+  it("prefers Host and x-forwarded-proto over request.url", () => {
+    const request = new Request("http://localhost:3000/api/auth/logout", {
+      headers: {
+        host: "main.d17na73qopyazf.amplifyapp.com",
+        "x-forwarded-proto": "https",
+      },
+    });
+    expect(resolveRequestOrigin(request)).toBe("https://main.d17na73qopyazf.amplifyapp.com");
+    expect(samlLoginAbsoluteUrl(request)).toBe(
+      "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
+    );
+  });
+
+  it("falls back to SAML_ISSUER or NEXTAUTH_URL origin", () => {
+    expect(
+      originFromEnv({
+        SAML_ISSUER: "https://portal.example.test/api/auth/saml/metadata",
+      })
+    ).toBe("https://portal.example.test");
+    expect(originFromEnv({ NEXTAUTH_URL: "https://from-next.example.test" })).toBe(
+      "https://from-next.example.test"
+    );
   });
 });

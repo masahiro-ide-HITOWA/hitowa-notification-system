@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSamlClient, isMockAuthEnabled, SAML_CALLBACK_PATH } from "@/lib/saml";
+import { absoluteUrlFromRequest, resolveRequestOrigin } from "@/lib/request-origin";
 
 export async function GET(request: Request) {
   if (isMockAuthEnabled()) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(absoluteUrlFromRequest("/", request));
   }
   try {
     const saml = getSamlClient();
     const relayState = new URL(request.url).searchParams.get("RelayState") ?? "";
-    const redirectUrl = await saml.getAuthorizeUrlAsync(relayState, undefined, {});
+    const host = new URL(resolveRequestOrigin(request)).host;
+    const redirectUrl = await saml.getAuthorizeUrlAsync(relayState, host, { forceAuthn: true });
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("[saml] failed to start login", error);

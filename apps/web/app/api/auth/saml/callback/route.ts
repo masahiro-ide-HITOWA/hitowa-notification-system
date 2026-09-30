@@ -5,6 +5,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth-session";
 import { getSamlClient, isMockAuthEnabled } from "@/lib/saml";
+import { absoluteUrlFromRequest } from "@/lib/request-origin";
 import { profileFromSamlAttributes, samlBodyFromRequestData } from "@/lib/saml-profile";
 
 async function readCallbackBody(request: Request): Promise<unknown> {
@@ -47,7 +48,11 @@ export async function POST(request: Request) {
     }
 
     const user = profileFromSamlAttributes(result.profile);
-    const response = NextResponse.redirect(new URL("/mypage", request.url));
+    const response = NextResponse.redirect(absoluteUrlFromRequest("/mypage", request));
+    response.cookies.set(SESSION_COOKIE_NAME, "", {
+      ...sessionCookieOptions(),
+      maxAge: 0,
+    });
     response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(user), sessionCookieOptions());
     return response;
   } catch (error) {
