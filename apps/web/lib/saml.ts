@@ -5,6 +5,7 @@ import { isMockAuthEnabled } from "@/lib/auth-mode";
 export { isMockAuthEnabled };
 export {
   SAML_CALLBACK_PATH,
+  SAML_COMPLETE_PATH,
   SAML_LOGIN_PATH,
   SAML_METADATA_PATH,
 } from "@/lib/auth-mode";

@@ -1,13 +1,9 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  SESSION_COOKIE_NAME,
-  createSessionToken,
-  sessionCookieOptions,
-} from "@/lib/auth-session";
+import { SAML_COMPLETE_PATH } from "@/lib/auth-mode";
 import { getSamlClient, isMockAuthEnabled } from "@/lib/saml";
 import { absoluteUrlFromRequest } from "@/lib/request-origin";
 import { profileFromSamlAttributes, samlBodyFromRequestData } from "@/lib/saml-profile";
+import { createSessionToken } from "@/lib/auth-session";
 
 async function readCallbackBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -21,22 +17,6 @@ async function readCallbackBody(request: Request): Promise<unknown> {
     const text = await request.text();
     return Object.fromEntries(new URLSearchParams(text).entries());
   }
-}
-
-async function attachSessionCookie(
-  response: NextResponse,
-  token: string,
-  request: Request
-): Promise<NextResponse> {
-  const options = sessionCookieOptions(request);
-  try {
-    const jar = await cookies();
-    jar.set(SESSION_COOKIE_NAME, token, options);
-  } catch {
-    // Route-handler unit tests have no Next.js cookie store.
-  }
-  response.cookies.set(SESSION_COOKIE_NAME, token, options);
-  return response;
 }
 
 export async function POST(request: Request) {
@@ -64,9 +44,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = profileFromSamlAttributes(result.profile);
-    const response = NextResponse.redirect(absoluteUrlFromRequest("/mypage", request), 303);
-    return attachSessionCookie(response, createSessionToken(user), request);
+    const token = createSessionToken(profileFromSamlAttributes(result.profile));
+    const completeUrl = new URL(absoluteUrlFromRequest(SAML_COMPLETE_PATH, request));
+    completeUrl.searchParams.set("t", token);
+    const response = NextResponse.redirect(completeUrl, 303);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   } catch (error) {
     console.error("[saml] callback validation failed", error);
     return NextResponse.json(

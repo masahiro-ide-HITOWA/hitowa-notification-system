@@ -211,6 +211,28 @@ describe("SAML routes with mock auth", () => {
       "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
     );
   });
+
+  it("complete GET writes the session cookie then redirects to mypage", async () => {
+    const previous = process.env.USE_MOCK_AUTH;
+    process.env.USE_MOCK_AUTH = "false";
+    try {
+      const { GET: completeGet } = await import("../apps/web/app/api/auth/saml/complete/route");
+      const token = createSessionToken(DEMO_USER_PROFILE);
+      const res = await completeGet(
+        new Request("http://localhost/api/auth/saml/complete?t=" + encodeURIComponent(token))
+      );
+      expect(res.status).toBe(303);
+      expect(res.headers.get("location")).toBe("http://localhost/mypage");
+      expect(res.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
+      expect(res.headers.get("set-cookie") ?? "").toMatch(/Path=\//i);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.USE_MOCK_AUTH;
+      } else {
+        process.env.USE_MOCK_AUTH = previous;
+      }
+    }
+  });
 });
 
 describe("resolveRequestOrigin", () => {
