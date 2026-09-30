@@ -134,4 +134,21 @@ describe("SAML routes with mock auth", () => {
       }
     }
   });
+
+  it("logout clears the session cookie and redirects to SAML login", async () => {
+    const { GET: logoutGet, POST: logoutPost } = await import(
+      "../apps/web/app/api/auth/logout/route"
+    );
+    const getRes = logoutGet(new Request("http://localhost/api/auth/logout"));
+    expect(getRes.status).toBe(307);
+    expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
+    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
+
+    const postRes = logoutPost();
+    expect(postRes.status).toBe(200);
+    expect(await postRes.json()).toEqual({
+      success: true,
+      loginPath: "/api/auth/saml/login",
+    });
+  });
 });

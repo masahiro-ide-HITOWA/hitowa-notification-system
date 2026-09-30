@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSaasPath,
+  filterPortalInboxItems,
   getPortalNotification,
   PORTAL_INBOX_ITEMS,
 } from "../apps/web/lib/portal-notifications";
@@ -25,5 +26,16 @@ describe("portal notifications", () => {
     for (const item of PORTAL_INBOX_ITEMS) {
       expect(item.actionUrl).toBe(buildSaasPath(item.source, item.id));
     }
+  });
+
+  it("filters inbox items by SaaS label", () => {
+    expect(filterPortalInboxItems(PORTAL_INBOX_ITEMS, "すべて")).toHaveLength(3);
+    expect(filterPortalInboxItems(PORTAL_INBOX_ITEMS, "TOKIUM").map((item) => item.source)).toEqual([
+      "tokium",
+    ]);
+    expect(filterPortalInboxItems(PORTAL_INBOX_ITEMS, "カオナビ")[0]?.source).toBe("kaonavi");
+    expect(filterPortalInboxItems(PORTAL_INBOX_ITEMS, "クラウドハウス")[0]?.source).toBe(
+      "cloudhouse"
+    );
   });
 });

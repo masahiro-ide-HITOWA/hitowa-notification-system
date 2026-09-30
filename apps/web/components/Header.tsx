@@ -94,7 +94,7 @@ export default function Header() {
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-indigo-400">
           <span className="text-lg">🔔</span>
-          <Link href="/" className="hover:text-indigo-300 transition">
+          <Link href="/mypage" className="hover:text-indigo-300 transition">
             <span className="hidden sm:inline">HITOWA統合通知ポータル</span>
             <span className="sm:hidden text-sm">HITOWAポータル</span>
           </Link>
@@ -104,10 +104,20 @@ export default function Header() {
             <Link href="/api/auth/saml/login" className={navClass(false)}>
               ログイン
             </Link>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                window.location.assign("/api/auth/logout");
+              }}
+              className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+            >
+              ログアウト (テスト用)
+            </button>
+          )}
           <Link
-            href="/notifications"
-            className={`${navClass(pathname === "/notifications")} inline-flex items-center gap-1.5`}
+            href="/mypage"
+            className={`${navClass(pathname === "/mypage" || pathname === "/notifications")} inline-flex items-center gap-1.5`}
           >
             マイ通知
             {unreadBadge ? (

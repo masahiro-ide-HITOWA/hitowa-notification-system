@@ -75,6 +75,20 @@ export const PORTAL_INBOX_ITEMS: PortalInboxItem[] = [
   },
 ];
 
+export const PORTAL_SAAS_FILTERS = ["すべて", "カオナビ", "TOKIUM", "クラウドハウス"] as const;
+
+export type PortalSaasFilter = (typeof PORTAL_SAAS_FILTERS)[number];
+
+export function filterPortalInboxItems(
+  items: PortalInboxItem[],
+  filter: string
+): PortalInboxItem[] {
+  if (filter === "すべて") {
+    return items;
+  }
+  return items.filter((item) => item.saasName.includes(filter));
+}
+
 export function getPortalNotification(
   source: string,
   id: string,
