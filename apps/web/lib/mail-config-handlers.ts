@@ -7,19 +7,20 @@ import {
 } from "@/lib/mail-config-store";
 import { MailConfigVerifyError, verifyMailConnection } from "@/lib/mail-config-verify";
 import { canUseWebMail } from "@/lib/mail-permission";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { mailActorFromRequest } from "@/lib/mail-api";
 
 function actorFromRequest(
   request: Request,
   body: unknown,
   queryUserId: string | null
 ): { portalUserId: string; email: string } | null {
+  const sessionActor = mailActorFromRequest(request);
   return parseMailSettingsActor(
     body,
-    request.headers.get("x-user-id") ?? DEMO_USER_PROFILE.portalUserId,
-    request.headers.get("x-user-email") ?? DEMO_USER_PROFILE.email,
+    request.headers.get("x-user-id") ?? sessionActor.portalUserId,
+    request.headers.get("x-user-email") ?? sessionActor.email,
     queryUserId
-  );
+  ) ?? sessionActor;
 }
 
 function forbiddenResponse() {

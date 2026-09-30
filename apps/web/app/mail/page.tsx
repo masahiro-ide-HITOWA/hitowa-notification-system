@@ -1,10 +1,16 @@
 import Header from "@/components/Header";
 import { MailClient } from "@/components/MailClient";
+import { SESSION_COOKIE_NAME, resolvePortalUser } from "@/lib/auth-session";
 import { canUseWebMail } from "@/lib/mail-permission";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { SAML_LOGIN_PATH } from "@/lib/saml";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default function MailPage() {
-  const user = DEMO_USER_PROFILE;
+export default async function MailPage() {
+  const user = resolvePortalUser((await cookies()).get(SESSION_COOKIE_NAME)?.value);
+  if (!user) {
+    redirect(SAML_LOGIN_PATH);
+  }
   const enabled = canUseWebMail(user.email);
 
   return (

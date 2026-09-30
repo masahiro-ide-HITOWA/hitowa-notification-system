@@ -1,8 +1,17 @@
 import Header from "@/components/Header";
 import { NotificationList } from "@/components/NotificationList";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { SESSION_COOKIE_NAME, resolvePortalUser } from "@/lib/auth-session";
+import { SAML_LOGIN_PATH } from "@/lib/saml";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  const user = resolvePortalUser(token);
+  if (!user) {
+    redirect(SAML_LOGIN_PATH);
+  }
+
   return (
     <div className="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-800">
       <Header />
@@ -13,7 +22,7 @@ export default function NotificationsPage() {
             カオナビ・TOKIUM・クラウドハウス労務・全社ポータルから届いた、自分宛ての通知履歴です。
           </p>
         </div>
-        <NotificationList portalUserId={DEMO_USER_PROFILE.portalUserId} />
+        <NotificationList portalUserId={user.portalUserId} />
       </main>
     </div>
   );

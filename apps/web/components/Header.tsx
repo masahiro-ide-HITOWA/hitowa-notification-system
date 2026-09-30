@@ -10,7 +10,9 @@ import {
 import { formatUnreadBadge } from "@/lib/notifications";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import { useMailConfigStatus } from "@/lib/use-mail-config-status";
+import { usePortalUser } from "@/lib/use-portal-user";
 import { useUnreadNotificationCount } from "@/lib/use-unread-notification-count";
+import { SAML_LOGIN_PATH } from "@/lib/saml";
 
 function navClass(active: boolean): string {
   return `px-3 py-1.5 rounded-lg font-semibold transition ${
@@ -38,9 +40,17 @@ function DisabledWebMail({ tooltip }: { tooltip: string }) {
   );
 }
 
-function WebMailNavButton({ pathname }: { pathname: string }) {
-  const status = useMailConfigStatus(DEMO_USER_PROFILE.portalUserId, DEMO_USER_PROFILE.email);
-  const mode = resolveWebMailNavMode(DEMO_USER_PROFILE.email, status.username, status.hasPassword);
+function WebMailNavButton({
+  pathname,
+  portalUserId,
+  email,
+}: {
+  pathname: string;
+  portalUserId: string;
+  email: string;
+}) {
+  const status = useMailConfigStatus(portalUserId, email);
+  const mode = resolveWebMailNavMode(email, status.username, status.hasPassword);
 
   if (mode === "enabled") {
     return (
@@ -75,7 +85,9 @@ function WebMailNavButton({ pathname }: { pathname: string }) {
 
 export default function Header() {
   const pathname = usePathname();
-  const unreadCount = useUnreadNotificationCount(DEMO_USER_PROFILE.portalUserId);
+  const { user, authMode } = usePortalUser();
+  const actor = user ?? DEMO_USER_PROFILE;
+  const unreadCount = useUnreadNotificationCount(actor.portalUserId);
   const unreadBadge = formatUnreadBadge(unreadCount);
 
   return (
@@ -89,6 +101,11 @@ export default function Header() {
           </Link>
         </div>
         <nav className="flex items-center gap-2 text-xs">
+          {authMode === "saml" && !user ? (
+            <Link href={SAML_LOGIN_PATH} className={navClass(false)}>
+              ログイン
+            </Link>
+          ) : null}
           <Link
             href="/notifications"
             className={`${navClass(pathname === "/notifications")} inline-flex items-center gap-1.5`}
@@ -100,7 +117,11 @@ export default function Header() {
               </span>
             ) : null}
           </Link>
-          <WebMailNavButton pathname={pathname} />
+          <WebMailNavButton
+            pathname={pathname}
+            portalUserId={actor.portalUserId}
+            email={actor.email}
+          />
           <Link href="/mypage" className={navClass(pathname === "/mypage")}>
             設定
           </Link>

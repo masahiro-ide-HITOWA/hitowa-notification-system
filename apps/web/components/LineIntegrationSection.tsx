@@ -4,18 +4,18 @@ import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import { isLinkedStatusPayload, useLineLinkStatus } from "@/lib/use-line-link-status";
+import { usePortalUser } from "@/lib/use-portal-user";
 
 export function LineIntegrationSection() {
+  const { user } = usePortalUser();
+  const profile = user ?? DEMO_USER_PROFILE;
   const [loading, setLoading] = useState(false);
   const [codeData, setCodeData] = useState<{
     oneTimeCode: string;
     expiresAt: string;
     lineAddFriendUrl: string;
   } | null>(null);
-  const { isLinked, setIsLinked } = useLineLinkStatus(
-    DEMO_USER_PROFILE.email,
-    DEMO_USER_PROFILE.portalUserId
-  );
+  const { isLinked, setIsLinked } = useLineLinkStatus(profile.email, profile.portalUserId);
 
   const handleIssueCode = async () => {
     setLoading(true);
@@ -24,12 +24,12 @@ export function LineIntegrationSection() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-user-id": DEMO_USER_PROFILE.portalUserId,
-          "x-user-email": DEMO_USER_PROFILE.email,
+          "x-user-id": profile.portalUserId,
+          "x-user-email": profile.email,
         },
         body: JSON.stringify({
-          portalUserId: DEMO_USER_PROFILE.portalUserId,
-          attributes: DEMO_USER_PROFILE,
+          portalUserId: profile.portalUserId,
+          attributes: profile,
         }),
       });
       const data: unknown = await res.json();
@@ -68,11 +68,11 @@ export function LineIntegrationSection() {
           "/api/line/check-status?code=" +
             codeData.oneTimeCode +
             "&email=" +
-            encodeURIComponent(DEMO_USER_PROFILE.email),
+            encodeURIComponent(profile.email),
           {
             headers: {
-              "x-user-email": DEMO_USER_PROFILE.email,
-              "x-user-id": DEMO_USER_PROFILE.portalUserId,
+              "x-user-email": profile.email,
+              "x-user-id": profile.portalUserId,
             },
           }
         );

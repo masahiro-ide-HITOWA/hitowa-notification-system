@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseMailSettingsActor } from "@/lib/mail-config";
-import { mailForbiddenIfHq } from "@/lib/mail-api";
+import { mailActorFromRequest, mailForbiddenIfHq } from "@/lib/mail-api";
 import { sendMail } from "@/lib/mail-smtp";
 import {
   MISSING_TO_MESSAGE,
@@ -18,16 +18,14 @@ export async function POST(request: Request) {
     body = {};
   }
 
+  const sessionActor = mailActorFromRequest(request);
   const actor =
     parseMailSettingsActor(
       body,
-      request.headers.get("x-user-id") ?? DEMO_USER_PROFILE.portalUserId,
-      request.headers.get("x-user-email") ?? DEMO_USER_PROFILE.email,
+      request.headers.get("x-user-id") ?? sessionActor.portalUserId,
+      request.headers.get("x-user-email") ?? sessionActor.email,
       null
-    ) ?? {
-      portalUserId: DEMO_USER_PROFILE.portalUserId,
-      email: DEMO_USER_PROFILE.email,
-    };
+    ) ?? sessionActor;
 
   const forbidden = mailForbiddenIfHq(actor.email);
   if (forbidden) {

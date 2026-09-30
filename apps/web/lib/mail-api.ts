@@ -3,17 +3,19 @@ import { isMailImapError, type MailImapError } from "@/lib/mail-imap-model";
 import { canUseWebMail } from "@/lib/mail-permission";
 import { parseMailSettingsActor } from "@/lib/mail-config";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
+import { resolvePortalUser, sessionCookieFromHeader } from "@/lib/auth-session";
 
 export function mailActorFromRequest(request: Request): { portalUserId: string; email: string } {
+  const sessionUser = resolvePortalUser(sessionCookieFromHeader(request.headers.get("cookie")));
   return (
     parseMailSettingsActor(
       {},
-      request.headers.get("x-user-id") ?? DEMO_USER_PROFILE.portalUserId,
-      request.headers.get("x-user-email") ?? DEMO_USER_PROFILE.email,
+      request.headers.get("x-user-id") ?? sessionUser?.portalUserId ?? DEMO_USER_PROFILE.portalUserId,
+      request.headers.get("x-user-email") ?? sessionUser?.email ?? DEMO_USER_PROFILE.email,
       new URL(request.url).searchParams.get("portalUserId")
     ) ?? {
-      portalUserId: DEMO_USER_PROFILE.portalUserId,
-      email: DEMO_USER_PROFILE.email,
+      portalUserId: sessionUser?.portalUserId ?? DEMO_USER_PROFILE.portalUserId,
+      email: sessionUser?.email ?? DEMO_USER_PROFILE.email,
     }
   );
 }

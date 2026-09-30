@@ -7,10 +7,12 @@ import { MypageMailSettingsCard } from '@/components/MypageMailSettingsCard';
 import { MypagePendingCodePanel } from '@/components/mypage-pending-code-panel';
 import { MypageProfileCard } from '@/components/mypage-profile-card';
 import { isLinkedStatusPayload, useLineLinkStatus } from '@/lib/use-line-link-status';
+import { usePortalUser } from '@/lib/use-portal-user';
 import { DEMO_USER_PROFILE } from '@/lib/saml-user-attributes';
 
 export default function MyPage() {
-  const userProfile = DEMO_USER_PROFILE;
+  const { user } = usePortalUser();
+  const userProfile = user ?? DEMO_USER_PROFILE;
 
   const [loading, setLoading] = useState(false);
   const [codeData, setCodeData] = useState<{
