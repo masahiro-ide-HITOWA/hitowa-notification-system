@@ -8,6 +8,8 @@ import {
 } from "../apps/web/lib/auth-session";
 import {
   isMockAuthEnabled,
+} from "../apps/web/lib/auth-mode";
+import {
   normalizeSamlCertificate,
   readSamlEnv,
 } from "../apps/web/lib/saml";

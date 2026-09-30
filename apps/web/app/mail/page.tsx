@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import { MailClient } from "@/components/MailClient";
 import { SESSION_COOKIE_NAME, resolvePortalUser } from "@/lib/auth-session";
 import { canUseWebMail } from "@/lib/mail-permission";
-import { SAML_LOGIN_PATH } from "@/lib/saml";
+import { SAML_LOGIN_PATH } from "@/lib/auth-mode";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 

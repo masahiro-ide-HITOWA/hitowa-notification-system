@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { PortalUserProfile } from "@/lib/saml-user-attributes";
 import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
-import { isMockAuthEnabled } from "@/lib/saml";
+import { isMockAuthEnabled } from "@/lib/auth-mode";
 
 export const SESSION_COOKIE_NAME = "hitowa_session";
 export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;

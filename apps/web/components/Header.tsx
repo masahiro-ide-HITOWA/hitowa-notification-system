@@ -12,7 +12,6 @@ import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import { useMailConfigStatus } from "@/lib/use-mail-config-status";
 import { usePortalUser } from "@/lib/use-portal-user";
 import { useUnreadNotificationCount } from "@/lib/use-unread-notification-count";
-import { SAML_LOGIN_PATH } from "@/lib/saml";
 
 function navClass(active: boolean): string {
   return `px-3 py-1.5 rounded-lg font-semibold transition ${
@@ -102,7 +101,7 @@ export default function Header() {
         </div>
         <nav className="flex items-center gap-2 text-xs">
           {authMode === "saml" && !user ? (
-            <Link href={SAML_LOGIN_PATH} className={navClass(false)}>
+            <Link href="/api/auth/saml/login" className={navClass(false)}>
               ログイン
             </Link>
           ) : null}

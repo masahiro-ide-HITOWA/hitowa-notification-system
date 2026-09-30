@@ -1,8 +1,13 @@
+import "server-only";
 import { SAML } from "@node-saml/node-saml";
+import { isMockAuthEnabled } from "@/lib/auth-mode";
 
-export const SAML_LOGIN_PATH = "/api/auth/saml/login";
-export const SAML_CALLBACK_PATH = "/api/auth/saml/callback";
-export const SAML_METADATA_PATH = "/api/auth/saml/metadata";
+export { isMockAuthEnabled };
+export {
+  SAML_CALLBACK_PATH,
+  SAML_LOGIN_PATH,
+  SAML_METADATA_PATH,
+} from "@/lib/auth-mode";
 
 export interface SamlEnvConfig {
   entryPoint: string;
@@ -22,10 +27,6 @@ export interface SamlClientLike {
     body: Record<string, string>
   ) => Promise<{ profile: Record<string, unknown> | null }>;
   generateServiceProviderMetadata: (decryptionCert: string | null) => string;
-}
-
-export function isMockAuthEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.USE_MOCK_AUTH !== "false";
 }
 
 export function normalizeSamlCertificate(raw: string): string {
