@@ -1,246 +1,152 @@
-ここまでの実装内容を反映し、システム全体の最新仕様・設計・環境構築手順を網羅した**完全版システム仕様・構築ドキュメント**を作成しました。
+これまでの構築・改修内容を網羅し、Cursor との相互理解および開発の引き継ぎ（ドキュメント保管）が完全に行えるよう、**全般的なシステム仕様・環境変数・アーキテクチャ・フォルダ/ファイル構成**を整理しました。
 
-以下のドキュメント内容をプロジェクトルート直下の `README.md` または `docs/SYSTEM_SPEC.md` に反映（または更新）してください。
-
----
-
-# 📄 HITOWA 業務ポータル 通知・LINE連携システム ドキュメント
-
-本システムは、外部システム（カオナビ・TOKIUM・クラウドハウス労務等）からの通知メールを自動受信・解析し、社員ポータル上の「マイ通知画面」への即時表示および「LINE Push通知」への自動転送を実現する通知基盤システムです。
+このドキュメントをプロジェクトの `README.md` や `docs/system-spec.md` に保存、または Cursor (Composer) に提示することで、次回以降のセッションでも全く同じ前提知識・共通認識から開発を再開できます。
 
 ---
 
-## 1. 要件定義書 (Requirements Specification)
+# 📘 HITOWA 統合通知ポータル システム全般仕様・ナレッジベース
 
-### 1.1 背景と目的
+## 1. システム概要と開発状況
 
-各業務システムからの重要通知が個別メールに埋もれてしまい、確認漏れや対応遅延が発生する課題を解決するため、ポータル上のマイ通知画面および LINE Messaging API を活用した一元的な通知通知配信・閲覧環境を提供します。
+* **システム名**: HITOWA 統合通知ポータル (`hitowa-notification-system`)
+* **主要目的**: 外部 SaaS (TOKIUM, カオナビ, クラウドハウス等) からの通知メールを自動受信・パースし、統合ポータル画面および LINE 公式アカウントへ即時配信する。
+* **現在のステータス**:
+* メール受信・パース・通知登録・LINE 配信パイプラインは本番稼働成功。
+* SAML 2.0 (検証用 IdP) 認証連携および認証ガードの実装完了。
+* ルーティングのスリム化（`/` ➔ `/mypage`）と「マイ通知」画面のフィルター機能追加済み。
 
-### 1.2 主な機能要件
 
-| ID | 機能名 | 詳細・仕様 |
+
+---
+
+## 2. インフラ・アーキテクチャ構成
+
+* **フロントエンド / Web サーバー**: AWS Amplify Hosting (Next.js SSR / App Router)
+* **認証基盤**: SAML 2.0 (検証環境 / 本番環境) または モック認証 (ローカル / テスト用)
+* **シークレット管理**: AWS Secrets Manager (`hitowa/notification-portal/saas-mail-credentials`)
+* IMAP 接続資格情報をセキュアに管理。取得結果はメモリ上に 8 分間キャッシュ。
+
+
+* **アクセス権限**: IAM ロール `AmplifySSRComputeRole` に対して Secrets Manager (`GetSecretValue`) 読み取り権限を付与。
+* **メール基盤 (IMAP)**: KAGOYA メール / Google Workspace (Gmail API/IMAP)
+* Google アカウント利用時は 2 段階認証 ＋ 16 桁の「アプリパスワード」を使用。
+* TLS/SSL 接続（ポート `993`）およびタイムアウト調整済み。
+
+
+
+---
+
+## 3. フォルダ・ファイル構成
+
+```
+hitowa-notification-system/
+├── apps/
+│   └── web/                                # Next.js フロントエンド & API Routes
+│       ├── app/
+│       │   ├── layout.tsx                  # ルートレイアウト
+│       │   ├── page.tsx                    # ルート (/) ➔ /mypage へ redirect
+│       │   ├── mypage/
+│       │   │   └── page.tsx                # マイ通知画面 (個人通知一覧 + 2系統フィルター)
+│       │   ├── mail-settings/              # Webメール設定画面 (独立)
+│       │   ├── line-settings/              # LINE連携設定画面 (独立)
+│       │   └── api/
+│       │       ├── auth/
+│       │       │   ├── logout/             # テスト用ログアウト API (Cookie削除)
+│       │       │   └── saml/
+│       │       │       ├── login/route.ts  # AuthnRequest 生成 & IdP リダイレクト
+│       │       │       ├── callback/route.ts# ACS エンドポイント (アサーション検証 & セッション発行)
+│       │       │       └── metadata/route.ts# SP Metadata XML 出力
+│       │       └── cron/
+│       │           └── fetch-emails/route.ts# メール受信・パース実行 Cron API
+│       ├── components/
+│       │   ├── Header.tsx                  # ヘッダー (ロゴ / マイ通知リンク / テスト用ログアウト)
+│       │   └── ...
+│       ├── lib/
+│       │   ├── auth.ts                     # セッション / モック / 認証ユーティリティ
+│       │   ├── saml.ts                     # SAML クライアント (import 'server-only')
+│       │   ├── secrets.ts                  # Secrets Manager (ap-northeast-1 明示)
+│       │   └── email-fetcher.ts            # IMAP受信・メールパース・ユーザー紐付けロジック
+│       └── middleware.ts                   # 未ログイン保護ガード (USE_MOCK_AUTH=false 時)
+├── packages/                               # ドメインロジック・共通パッケージ
+└── docs/                                   # システムドキュメント
+
+```
+
+---
+
+## 4. 環境変数一覧 (`apps/web/.env.local` および Amplify 管理画面)
+
+| 環境変数名 | 設定例 / 説明 | 備考 |
 | --- | --- | --- |
-| **REQ-01** | **マイページ UI & SAML属性保持** | SAML SSO 認証時に取得した `portalUserId`（社員番号）、氏名、所属名、`officeCode`（施設コード）等の属性を DynamoDB (`HitowaUserMappings`) へ動的保存・表示する。 |
-| **REQ-02** | **LINE連携・アンリンク機能** | - ワンタイムコード発行（6桁数字）とポーリングによるLINEアカウント連携。<br>
-
-<br>- 連携解除（アンリンク）時はデータを物理削除せず `status = "UNLINKED"` および `unlinkedAt` を記録（論理更新）。 |
-| **REQ-03** | **お知らせ一斉配信 API** | - `ALL`（全社）または `OFFICE`（施設コード `officeCode` 指定）による対象ユーザー絞り込み配信。<br>
-
-<br>- LINE Messaging API Multicast を活用し、500件単位で自動チャンク分割送信。 |
-| **REQ-04** | **外部通知メール受信用 Webhook** | - 送信元ドメイン（`kaonavi.jp` 等）や件名・本文から送信元システム名、宛先、本文サマリーを自動パース。<br>
-
-<br>- 宛先メールから `portalUserId` を解決し、`HitowaNotifications` テーブルへ永続化保存。 |
-| **REQ-05** | **LINE Push 自動転送** | - Webhook メール保存完了後、対象ユーザーが LINE 連携済み（`COMPLETED`）であれば、自動で LINE にも Push 通知を転送。<br>
-
-<br>- LINE 送信側の例外・失敗で Webhook 自体が 500 エラーにならないよう非同期フォールバック処理を実施。 |
-| **REQ-06** | **マイ通知画面 (`/notifications`)** | - ポータル設定画面（`/mypage`）から独立させた通知履歴専用画面。<br>
-
-<br>- DynamoDB から `createdAt` 降順でリアルタイム取得。<br>
-
-<br>- カードクリックによる即時「既読（`isRead: true`）」更新 API と連動。 |
-
-### 1.3 非機能要件・コード制約
-
-* **型安全性の徹底**: `any` 型の使用を全面的に禁止。
-* **可読性・保守性**: 1ファイル 200 行以内を厳格遵守。コンポーネントおよびロジックを適切に分割。
-* **品質保証 (TDD)**: Vitest による単体テスト駆動開発を実施し、主要ロジックのグリーン状態を確保。
+| `USE_MOCK_AUTH` | `"false"` (検証/本番) / `"true"` (ローカル) | `"false"` 時に SAML 2.0 認証を有効化 |
+| `AWS_REGION` | `"ap-northeast-1"` | Secrets Manager 等の接続リージョン |
+| `SAML_ISSUER` | `https://<domain>/api/auth/saml/metadata` | SP Entity ID |
+| `SAML_CALLBACK_URL` | `https://<domain>/api/auth/saml/callback` | SP ACS URL |
+| `SAML_ENTRY_POINT` | `https://<idp-domain>/saml/sso` | IdP の SSO ログイン URL |
+| `SAML_IDP_ISSUER` | `https://<idp-domain>` | IdP Entity ID |
+| `SAML_CERT` | `"MIIDXTCCAkWgAwIBAg..."` | IdP の X.509 証明書文字列 |
 
 ---
 
-## 2. 技術スタック (Technical Stack)
+## 5. 機能仕様（詳細）
 
-* **フロントエンド / バックエンド (API)**: Next.js (App Router, `apps/web/app`), TypeScript, React, Tailwind CSS
-* **データベース**: AWS DynamoDB (DynamoDB Local 対応)
-* `@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`
+### ① 画面単位の機能
+
+* **ルート (`/`)**: アクセス時、即座に `/mypage` へ `redirect('/mypage')`。
+* **マイ通知画面 (`/mypage`)**:
+* ログインユーザー個人宛の通知を一覧表示。
+* **既読状態フィルター**: 「すべて」 | 「未読」 | 「既読」
+* **SaaS サービスフィルター**: 「すべて」 | 「カオナビ」 | 「TOKIUM」 | 「クラウドハウス」
+* 2 つの条件を掛け合わせた絞り込み表示が可能。
 
 
-* **外部連携 API**: LINE Messaging API (Multicast / Push), Webhook Ingestion
-* **テスト環境**: Vitest (モックテスト、エイリアス設定 `@/` 対応)
+* **独立設定画面**:
+* `Webメール設定`、`LINE連携設定` などはマイ通知画面に同梱せず、独立した専用画面として保持。
 
----
 
-## 3. データモデル構造 (DynamoDB Data Models)
-
-### 3.1 `HitowaUserMappings` (ユーザー・LINE連携・属性テーブル)
-
-* **PK (Partition Key)**: `oneTimeCode` (String) ※連携前コード / レコードID
-* **主要属性**:
-* `portalUserId` (String, GSI / Scan検索用キー)
-* `lineUserId` (String)
-* `status` (String: `"PENDING"` | `"COMPLETED"` | `"UNLINKED"`)
-* `attributes` (Map: `email`, `officeCode`, `divisionName`, `displayName` 等)
-* `linkedAt` / `unlinkedAt` (String: ISO8601)
+* **ヘッダー (`Header.tsx`)**:
+* ロゴおよび「マイ通知」リンクはすべて `/mypage` を指定。
+* **ログアウト (テスト用)** ボタン: `/api/auth/logout` を呼び出してセッション Cookie を破棄し、SAML ログイン画面 (`/api/auth/saml/login`) へ再送。
 
 
 
-### 3.2 `HitowaNotifications` (通知履歴保存テーブル)
+### ② バックグラウンド処理 & 未ログインガード
 
-* **PK (Partition Key)**: `portalUserId` (String)
-* **SK (Sort Key)**: `id` (String: UUID)
-* **主要属性**:
-* `systemName` (String: `"カオナビ"` | `"TOKIUM"` | `"クラウドハウス労務"` | `"全社ポータル"`)
-* `title` (String)
-* `body` (String)
-* `isRead` (Boolean)
-* `createdAt` (String: ISO8601)
+* **認証ガード (`middleware.ts`)**:
+* `USE_MOCK_AUTH=false` かつ未ログインの場合、保護対象ページへのアクセスを自動で `/api/auth/saml/login` （HITOWA 認証サーバー/IdP）へ転送。
+* SAML エンドポイント（`/api/auth/saml/*`）、Webhook、Cron API は除外。
+
+
+
+### ③ メール受信・パース・通知登録仕様 (`/api/cron/fetch-emails`)
+
+* **受信プロトコル**: IMAP (Implicit SSL, ポート `993`)
+* `tlsOptions: { rejectUnauthorized: false }` により証明書エラーを回避。
+* `authTimeout`, `greetingTimeout`, `connectionTimeout` 設定によるタイムアウト対策。
+
+
+* **パース・分析ロジック**:
+* `SEEN`/`UNSEEN` メールの両方をスキャン。
+* 転送メール（件名 `Fwd:` 等）の本文を解析。
+* 転送元の本文から**宛先メールアドレス**（例: `masahiro-ide@hitowa.com`）や**社員番号**（例: `00400611`）を抽出し、該当ユーザーを識別して通知をDB登録。
+* 通知対象となる SaaS アクション URL（`[http://click.keihi.com/](http://click.keihi.com/)...` 等）を自動取得。
+* DB 登録と同時に、連携済みの **LINE 公式アカウントへ即時 Push 通知**を送信。
 
 
 
 ---
 
-## 4. API エンドポイント一覧 (API Specifications)
+### 💡 Cursor との共有手順
 
-| Method | Endpoint | 概要・用途 |
-| --- | --- | --- |
-| `POST` | `/api/line/unlink` | LINE連携解除（`status: UNLINKED` 更新） |
-| `POST` | `/api/line/send-announcement` | お知らせ一斉配信（`ALL` / `OFFICE` 絞り込み & Multicast 500件送信） |
-| `POST` | `/api/webhooks/email` | 外部メール受信・解析 Webhook（DB保存 & 連携済みユーザーへ LINE Push 自動転送） |
-| `GET` | `/api/notifications` | マイ通知一覧取得（DynamoDB Query/Scan + フォールバック、`createdAt` 降順） |
-| `POST` | `/api/notifications/read` | 通知の既読化更新（`isRead = true`） |
+Cursor (Composer) で新しいチャットを開始する際は、以下のテキストをプロンプト冒頭に貼り付けてご活用ください。
 
----
-
-## 5. ディレクトリ構造 (Directory Structure)
-
-```text
-apps/web/
-├── app/
-│   ├── api/
-│   │   ├── line/
-│   │   │   ├── unlink/route.ts
-│   │   │   └── send-announcement/route.ts
-│   │   ├── notifications/
-│   │   │   ├── route.ts
-│   │   │   └── read/route.ts
-│   │   └── webhooks/
-│   │       └── email/route.ts
-│   ├── mypage/
-│   │   └── page.tsx                # 設定・LINE連携・マイ通知導線
-│   └── notifications/
-│       └── page.tsx                # マイ通知履歴閲覧画面
-├── components/
-│   ├── MypageLinkedPanel.tsx       # 連携済み状態パネル
-│   ├── MypagePendingCodePanel.tsx  # コード発行状態パネル
-│   └── NotificationList.tsx        # 通知カード一覧・既読化UI
-└── lib/
-    ├── dynamodb.ts                 # DynamoDB Client
-    ├── email-parser.ts             # メール解析ロジック
-    ├── email-notification.ts       # メール→通知データ変換
-    ├── line-announcement.ts        # お知らせ一斉送信ロジック
-    ├── line-push.ts                # LINE Push転送ロジック
-    ├── line-unlink.ts              # 連携解除処理
-    ├── notification-store.ts       # DynamoDB通知取得処理
-    └── notification-read.ts        # DynamoDB既読更新処理
+```markdown
+【プロジェクト最新共通理解】
+- アプリ構造: Next.js App Router (Amplify SSR)
+- トップ (/) は /mypage へ転送。
+- マイ通知 (/mypage) には「すべて/未読/既読」と「すべて/カオナビ/TOKIUM/クラウドハウス」の2系統フィルターが設置されています。設定画面は独立しています。
+- 認証: USE_MOCK_AUTH=false で SAML 2.0 (lib/saml.ts)。Header にテスト用ログアウトあり。
+- メール受信: GET /api/cron/fetch-emails (Secrets Manager + IMAP パース + DB登録 + LINE Push)。
+- ルール: 指示されていない画面・ファイルは変更しないこと。
 
 ```
-
----
-
-## 6. 環境構築・動作確認手順 (Setup & Verification)
-
-### 6.1 環境変数の設定 (`.env.local`)
-
-`apps/web/.env.local` を作成または更新し、以下の項目を設定します。
-
-```env
-# DynamoDB（コード発行 POST /api/line/issue-code が参照するキー）
-# Amplify では AWS_REGION 手動設定ができない場合あり。未設定時は lib/dynamodb.ts が ap-northeast-1 を使用。
-DYNAMODB_TABLE_NAME=HitowaUserMappings
-DYNAMODB_NOTIFICATION_TABLE=HitowaNotifications
-DYNAMODB_MAIL_CONFIG_TABLE=HitowaMailConfigs
-
-# LINE Messaging API（Webhook / Push。コード発行自体には不要）
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_BOT_BASIC_ID=@your_line_basic_id
-
-# メール設定パスワード暗号化（KMS ARN ではない）
-ENCRYPTION_KEY=replace-with-a-long-random-secret
-```
-
-### 6.2 DynamoDB テーブルの作成
-
-#### GUI (AWS Console) で作成する場合
-
-1. **`HitowaUserMappings`**
-* **PK**: `oneTimeCode` (文字列)
-
-
-2. **`HitowaNotifications`**
-* **PK**: `portalUserId` (文字列)
-* **SK**: `id` (文字列)
-
-
-
-#### AWS CLI で作成する場合
-
-```powershell
-# HitowaNotifications テーブルの作成
-aws dynamodb create-table `
-    --table-name HitowaNotifications `
-    --attribute-definitions `
-        AttributeName=portalUserId,AttributeType=S `
-        AttributeName=id,AttributeType=S `
-    --key-schema `
-        AttributeName=portalUserId,KeyType=HASH `
-        AttributeName=id,KeyType=RANGE `
-    --billing-mode PAY_PER_REQUEST
-
-```
-
-### 6.3 依存関係のインストールと開発サーバー起動
-
-```powershell
-# インストール
-npm install
-
-# 単体テスト (Vitest) の実行
-npx vitest run
-
-# 開発サーバーの起動
-npm run dev
-
-```
-
-### 6.4 主要機能の動作確認コマンド (PowerShell)
-
-#### ① 外部メール受信 ＆ LINE Push 自動転送 Webhook テスト
-
-```powershell
-$body = @{
-    from    = "noreply@kaonavi.jp"
-    to      = "mei-sei@hitowa.com"
-    subject = "【カオナビ】目標管理シート提出のお願い"
-    body    = "目標管理シートの提出期限は今週末までとなっております。"
-} | ConvertTo-Json -Compress
-
-$bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
-
-Invoke-RestMethod -Uri "http://localhost:3000/api/webhooks/email" `
-                  -Method Post `
-                  -ContentType "application/json; charset=utf-8" `
-                  -Body $bytes
-
-```
-
-#### ② お知らせ一斉配信（施設コード指定）テスト
-
-```powershell
-$body = @{
-    title      = "施設内清掃のお知らせ"
-    content    = "本日15時より清掃作業を実施します。"
-    targetType = "OFFICE"
-    officeCode = "1"
-} | ConvertTo-Json -Compress
-
-$bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
-
-Invoke-RestMethod -Uri "http://localhost:3000/api/line/send-announcement" `
-                  -Method Post `
-                  -ContentType "application/json; charset=utf-8" `
-                  -Body $bytes
-
-```
-
----
-
-ドキュメントの更新内容は以上です。次回の作業開始時やチーム共有の際にぜひご活用ください！
