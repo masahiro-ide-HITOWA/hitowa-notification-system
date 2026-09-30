@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   createSessionToken,
+  isSecureSessionCookie,
   resolvePortalUser,
   sessionCookieFromHeader,
+  sessionCookieOptions,
   verifySessionToken,
 } from "../apps/web/lib/auth-session";
 import {
@@ -117,6 +119,27 @@ describe("session token", () => {
   it("reads the session cookie from Cookie header", () => {
     expect(sessionCookieFromHeader("a=1; hitowa_session=token.value; b=2")).toBe("token.value");
     expect(sessionCookieFromHeader(null)).toBeUndefined();
+  });
+
+  it("uses SameSite=None and Secure on HTTPS for SAML ACS", () => {
+    const httpsRequest = new Request("https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/callback", {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    expect(isSecureSessionCookie(httpsRequest, { NODE_ENV: "production" })).toBe(true);
+    expect(sessionCookieOptions(httpsRequest, { NODE_ENV: "production" })).toMatchObject({
+      httpOnly: true,
+      path: "/",
+      secure: true,
+      sameSite: "none",
+    });
+    expect(
+      sessionCookieOptions(new Request("http://localhost/api/auth/saml/callback"), {
+        NODE_ENV: "test",
+      })
+    ).toMatchObject({
+      secure: false,
+      sameSite: "lax",
+    });
   });
 });
 

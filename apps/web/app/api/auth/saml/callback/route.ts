@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   SESSION_COOKIE_NAME,
@@ -20,6 +21,22 @@ async function readCallbackBody(request: Request): Promise<unknown> {
     const text = await request.text();
     return Object.fromEntries(new URLSearchParams(text).entries());
   }
+}
+
+async function attachSessionCookie(
+  response: NextResponse,
+  token: string,
+  request: Request
+): Promise<NextResponse> {
+  const options = sessionCookieOptions(request);
+  try {
+    const jar = await cookies();
+    jar.set(SESSION_COOKIE_NAME, token, options);
+  } catch {
+    // Route-handler unit tests have no Next.js cookie store.
+  }
+  response.cookies.set(SESSION_COOKIE_NAME, token, options);
+  return response;
 }
 
 export async function POST(request: Request) {
@@ -48,13 +65,8 @@ export async function POST(request: Request) {
     }
 
     const user = profileFromSamlAttributes(result.profile);
-    const response = NextResponse.redirect(absoluteUrlFromRequest("/mypage", request));
-    response.cookies.set(SESSION_COOKIE_NAME, "", {
-      ...sessionCookieOptions(),
-      maxAge: 0,
-    });
-    response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(user), sessionCookieOptions());
-    return response;
+    const response = NextResponse.redirect(absoluteUrlFromRequest("/mypage", request), 303);
+    return attachSessionCookie(response, createSessionToken(user), request);
   } catch (error) {
     console.error("[saml] callback validation failed", error);
     return NextResponse.json(

@@ -109,35 +109,61 @@ export function sessionCookieFromHeader(cookieHeader: string | null): string | u
   return undefined;
 }
 
-export function sessionCookieOptions(): {
+export function isSecureSessionCookie(
+  request?: Request,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (env.NODE_ENV === "production") {
+    return true;
+  }
+  if (!request) {
+    return false;
+  }
+  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (proto === "https") {
+    return true;
+  }
+  try {
+    return new URL(request.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export type SessionCookieSetOptions = {
   httpOnly: true;
   secure: boolean;
-  sameSite: "lax";
+  sameSite: "lax" | "none";
   path: "/";
   maxAge: number;
-} {
+};
+
+export function sessionCookieOptions(
+  request?: Request,
+  env: NodeJS.ProcessEnv = process.env
+): SessionCookieSetOptions {
+  const secure = isSecureSessionCookie(request, env);
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure,
+    sameSite: secure ? "none" : "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
 }
 
-export function sessionCookieClearOptions(): {
-  httpOnly: true;
-  secure: boolean;
-  sameSite: "lax";
-  path: "/";
+export type SessionCookieClearOptions = SessionCookieSetOptions & {
   maxAge: 0;
   expires: Date;
-} {
+};
+
+export function sessionCookieClearOptions(
+  request?: Request,
+  env: NodeJS.ProcessEnv = process.env
+): SessionCookieClearOptions {
+  const options = sessionCookieOptions(request, env);
   return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
+    ...options,
     maxAge: 0,
     expires: new Date(0),
   };

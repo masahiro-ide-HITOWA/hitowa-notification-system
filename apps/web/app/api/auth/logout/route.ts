@@ -11,8 +11,8 @@ function applyLogoutHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
-async function clearSessionCookie(response: NextResponse): Promise<NextResponse> {
-  const clear = sessionCookieClearOptions();
+async function clearSessionCookie(response: NextResponse, request: Request): Promise<NextResponse> {
+  const clear = sessionCookieClearOptions(request);
   try {
     const jar = await cookies();
     jar.set(SESSION_COOKIE_NAME, "", clear);
@@ -26,7 +26,7 @@ async function clearSessionCookie(response: NextResponse): Promise<NextResponse>
 }
 
 export async function GET(request: Request) {
-  return clearSessionCookie(NextResponse.redirect(samlLoginAbsoluteUrl(request)));
+  return clearSessionCookie(NextResponse.redirect(samlLoginAbsoluteUrl(request)), request);
 }
 
 export async function POST(request: Request) {
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       success: true,
       loginPath: SAML_LOGIN_PATH,
       loginUrl: samlLoginAbsoluteUrl(request),
-    })
+    }),
+    request
   );
 }
