@@ -153,12 +153,19 @@ describe("SAML routes with mock auth", () => {
     const { GET: logoutGet, POST: logoutPost } = await import(
       "../apps/web/app/api/auth/logout/route"
     );
-    const getRes = logoutGet(new Request("http://localhost/api/auth/logout"));
+    const getRes = await logoutGet(new Request("http://localhost/api/auth/logout"));
     expect(getRes.status).toBe(307);
     expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
+    expect(getRes.headers.get("cache-control")).toContain("no-store");
+    expect(getRes.headers.get("pragma")).toBe("no-cache");
+    expect(getRes.headers.get("expires")).toBe("0");
     expect(getRes.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
+    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/Path=\//i);
+    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
 
-    const postRes = logoutPost(new Request("http://localhost/api/auth/logout", { method: "POST" }));
+    const postRes = await logoutPost(
+      new Request("http://localhost/api/auth/logout", { method: "POST" })
+    );
     expect(postRes.status).toBe(200);
     expect(await postRes.json()).toEqual({
       success: true,
@@ -169,7 +176,7 @@ describe("SAML routes with mock auth", () => {
 
   it("logout redirects using the forwarded Amplify host instead of localhost", async () => {
     const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
-    const getRes = logoutGet(
+    const getRes = await logoutGet(
       new Request("http://localhost:3000/api/auth/logout", {
         headers: {
           host: "main.d17na73qopyazf.amplifyapp.com",

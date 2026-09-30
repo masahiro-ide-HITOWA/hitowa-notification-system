@@ -108,7 +108,7 @@ export default function Header() {
             <button
               type="button"
               onClick={() => {
-                window.location.assign("/api/auth/logout");
+                window.location.href = "/api/auth/logout";
               }}
               className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
             >

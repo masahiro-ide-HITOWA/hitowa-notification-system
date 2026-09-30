@@ -124,3 +124,27 @@ export function sessionCookieOptions(): {
     maxAge: SESSION_MAX_AGE_SECONDS,
   };
 }
+
+export function sessionCookieClearOptions(): {
+  httpOnly: true;
+  secure: boolean;
+  sameSite: "lax";
+  path: "/";
+  maxAge: 0;
+  expires: Date;
+} {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+    expires: new Date(0),
+  };
+}
+
+export const LOGOUT_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
