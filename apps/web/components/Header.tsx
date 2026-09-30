@@ -131,7 +131,7 @@ export default function Header() {
             portalUserId={actor.portalUserId}
             email={actor.email}
           />
-          <Link href="/mypage" className={navClass(pathname === "/mypage")}>
+          <Link href="/settings" className={navClass(pathname === "/settings" || pathname.startsWith("/settings/"))}>
             設定
           </Link>
         </nav>

@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { NotificationFilterBar } from "@/components/NotificationFilterBar";
 import { NotificationListItem } from "@/components/notification-list-item";
 import {
   DEFAULT_NOTIFICATION_PAGE_SIZE,
   parseNotificationFeed,
   type NotificationFilter,
+  type NotificationSaasFilter,
 } from "@/lib/notification-query";
 import type { NotificationItem } from "@/lib/notifications";
 
@@ -13,15 +15,10 @@ interface NotificationListProps {
   portalUserId: string;
 }
 
-const FILTERS: Array<{ id: NotificationFilter; label: string }> = [
-  { id: "all", label: "すべて" },
-  { id: "unread", label: "未読のみ" },
-  { id: "read", label: "既読のみ" },
-];
-
 export function NotificationList({ portalUserId }: NotificationListProps) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [saasFilter, setSaasFilter] = useState<NotificationSaasFilter>("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -30,12 +27,13 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (nextFilter: NotificationFilter, nextPage: number) => {
+    async (nextFilter: NotificationFilter, nextSaas: NotificationSaasFilter, nextPage: number) => {
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams({
           filter: nextFilter,
+          saas: nextSaas,
           page: String(nextPage),
           limit: String(DEFAULT_NOTIFICATION_PAGE_SIZE),
         });
@@ -52,6 +50,7 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         setTotal(parsed.total);
         setUnreadCount(parsed.unreadCount);
         setFilter(parsed.filter);
+        setSaasFilter(parsed.saasFilter);
       } catch {
         setError("通知を読み込めませんでした");
       } finally {
@@ -62,8 +61,8 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
   );
 
   useEffect(() => {
-    void load(filter, page);
-  }, [filter, load, page]);
+    void load(filter, saasFilter, page);
+  }, [filter, saasFilter, load, page]);
 
   async function handleSelect(item: NotificationItem) {
     if (item.isRead) {
@@ -86,7 +85,7 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         "success" in data &&
         data.success === true
       ) {
-        await load(filter, page);
+        await load(filter, saasFilter, page);
       }
     } catch {
       console.error("Failed to mark notification as read");
@@ -105,23 +104,18 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
           </span>
         )}
       </div>
-      <div className="px-4 pt-3 flex flex-wrap gap-1.5">
-        {FILTERS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setFilter(tab.id);
-              setPage(1);
-            }}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-              filter === tab.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <NotificationFilterBar
+        readFilter={filter}
+        saasFilter={saasFilter}
+        onReadChange={(next) => {
+          setFilter(next);
+          setPage(1);
+        }}
+        onSaasChange={(next) => {
+          setSaasFilter(next);
+          setPage(1);
+        }}
+      />
       <div className="p-4 space-y-3">
         {showPager && (
           <NotificationPagination
@@ -134,7 +128,7 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         {loading && <p className="text-xs text-slate-500">通知を読み込んでいます...</p>}
         {error && <p className="text-xs text-rose-600">{error}</p>}
         {!loading && !error && items.length === 0 && (
-          <p className="text-xs text-slate-500">現在、自分宛ての通知はありません。</p>
+          <p className="text-xs text-slate-500">現在、条件に合う通知はありません。</p>
         )}
         {!loading &&
           !error &&
@@ -154,14 +148,17 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
   );
 }
 
-interface NotificationPaginationProps {
+function NotificationPagination({
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+}: {
   page: number;
   totalPages: number;
   onPrev: () => void;
   onNext: () => void;
-}
-
-function NotificationPagination({ page, totalPages, onPrev, onNext }: NotificationPaginationProps) {
+}) {
   return (
     <div className="flex items-center justify-between">
       <button

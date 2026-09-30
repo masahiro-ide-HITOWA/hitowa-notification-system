@@ -5,6 +5,7 @@ import {
   buildNotificationFeed,
   DEFAULT_NOTIFICATION_PAGE_SIZE,
   parseNotificationFilter,
+  parseNotificationSaasFilter,
   parsePositiveInt,
 } from "@/lib/notification-query";
 
@@ -23,8 +24,9 @@ export async function GET(request: Request) {
   }
 
   const filter = parseNotificationFilter(searchParams.get("filter"));
+  const saasFilter = parseNotificationSaasFilter(searchParams.get("saas"));
   const page = parsePositiveInt(searchParams.get("page"), 1, 10_000);
   const limit = parsePositiveInt(searchParams.get("limit"), DEFAULT_NOTIFICATION_PAGE_SIZE, 50);
   const notifications = await loadNotificationsForUser(portalUserId);
-  return NextResponse.json(buildNotificationFeed(notifications, filter, page, limit));
+  return NextResponse.json(buildNotificationFeed(notifications, filter, page, limit, saasFilter));
 }

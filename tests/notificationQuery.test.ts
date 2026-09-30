@@ -5,6 +5,7 @@ import {
   filterNotifications,
   paginateNotifications,
   parseNotificationFilter,
+  parseNotificationSaasFilter,
   parsePositiveInt,
 } from "../apps/web/lib/notification-query";
 import {
@@ -82,5 +83,24 @@ describe("notification query", () => {
     expect(feed.items).toHaveLength(2);
     expect(feed.page).toBe(2);
     expect(feed.unreadCount).toBe(6);
+    expect(feed.saasFilter).toBe("all");
+  });
+
+  it("applies read status and SaaS filters together", () => {
+    const items = [
+      sample({ id: "u-kao", systemName: "カオナビ", isRead: false }),
+      sample({ id: "r-kao", systemName: "カオナビ", isRead: true }),
+      sample({ id: "u-tok", systemName: "TOKIUM", isRead: false }),
+      sample({ id: "u-ch", systemName: "クラウドハウス労務", isRead: false }),
+      sample({ id: "u-portal", systemName: "全社ポータル", isRead: false }),
+    ];
+    expect(filterNotifications(items, "unread", "TOKIUM").map((item) => item.id)).toEqual(["u-tok"]);
+    expect(filterNotifications(items, "read", "カオナビ").map((item) => item.id)).toEqual(["r-kao"]);
+    expect(filterNotifications(items, "unread", "クラウドハウス").map((item) => item.id)).toEqual([
+      "u-ch",
+    ]);
+    expect(filterNotifications(items, "all", "カオナビ")).toHaveLength(2);
+    expect(parseNotificationSaasFilter("TOKIUM")).toBe("TOKIUM");
+    expect(parseNotificationSaasFilter("nope")).toBe("all");
   });
 });

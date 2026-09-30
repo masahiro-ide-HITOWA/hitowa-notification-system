@@ -6,6 +6,20 @@ import {
 } from "@/lib/notifications";
 
 export type NotificationFilter = "all" | "unread" | "read";
+export type NotificationSaasFilter = "all" | "カオナビ" | "TOKIUM" | "クラウドハウス";
+
+export const NOTIFICATION_READ_FILTERS: Array<{ id: NotificationFilter; label: string }> = [
+  { id: "all", label: "すべて" },
+  { id: "unread", label: "未読" },
+  { id: "read", label: "既読" },
+];
+
+export const NOTIFICATION_SAAS_FILTERS: Array<{ id: NotificationSaasFilter; label: string }> = [
+  { id: "all", label: "すべて" },
+  { id: "カオナビ", label: "カオナビ" },
+  { id: "TOKIUM", label: "TOKIUM" },
+  { id: "クラウドハウス", label: "クラウドハウス" },
+];
 
 export const DEFAULT_NOTIFICATION_PAGE_SIZE = 10;
 
@@ -17,6 +31,7 @@ export interface NotificationFeed {
   total: number;
   totalPages: number;
   filter: NotificationFilter;
+  saasFilter: NotificationSaasFilter;
   unreadCount: number;
 }
 
@@ -31,6 +46,23 @@ export function parseNotificationFilter(value: string | null): NotificationFilte
   return "all";
 }
 
+export function parseNotificationSaasFilter(value: string | null): NotificationSaasFilter {
+  if (value === "カオナビ" || value === "TOKIUM" || value === "クラウドハウス") {
+    return value;
+  }
+  return "all";
+}
+
+export function matchesSaasFilter(
+  item: NotificationItem,
+  saasFilter: NotificationSaasFilter
+): boolean {
+  if (saasFilter === "all") {
+    return true;
+  }
+  return item.systemName.includes(saasFilter);
+}
+
 export function parsePositiveInt(value: string | null, fallback: number, max: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
   if (!Number.isInteger(parsed) || parsed < 1) {
@@ -41,15 +73,14 @@ export function parsePositiveInt(value: string | null, fallback: number, max: nu
 
 export function filterNotifications(
   items: NotificationItem[],
-  filter: NotificationFilter
+  filter: NotificationFilter,
+  saasFilter: NotificationSaasFilter = "all"
 ): NotificationItem[] {
-  if (filter === "unread") {
-    return items.filter((item) => !item.isRead);
-  }
-  if (filter === "read") {
-    return items.filter((item) => item.isRead);
-  }
-  return items;
+  return items.filter((item) => {
+    const matchesRead =
+      filter === "all" || (filter === "unread" ? !item.isRead : item.isRead);
+    return matchesRead && matchesSaasFilter(item, saasFilter);
+  });
 }
 
 export function paginateNotifications(
@@ -73,9 +104,10 @@ export function buildNotificationFeed(
   allItems: NotificationItem[],
   filter: NotificationFilter,
   page: number,
-  limit: number
+  limit: number,
+  saasFilter: NotificationSaasFilter = "all"
 ): NotificationFeed {
-  const filtered = filterNotifications(allItems, filter);
+  const filtered = filterNotifications(allItems, filter, saasFilter);
   const paged = paginateNotifications(filtered, page, limit);
   return {
     success: true,
@@ -85,6 +117,7 @@ export function buildNotificationFeed(
     total: paged.total,
     totalPages: paged.totalPages,
     filter,
+    saasFilter,
     unreadCount: countUnreadNotifications(allItems),
   };
 }
@@ -111,6 +144,9 @@ export function parseNotificationFeed(value: unknown): NotificationFeed | null {
   const total = typeof value.total === "number" ? value.total : items.length;
   const totalPages = typeof value.totalPages === "number" ? value.totalPages : 1;
   const unreadCount = typeof value.unreadCount === "number" ? value.unreadCount : countUnreadNotifications(items);
+  const saasFilter = parseNotificationSaasFilter(
+    typeof value.saasFilter === "string" ? value.saasFilter : "all"
+  );
   return {
     success: true,
     items,
@@ -119,6 +155,7 @@ export function parseNotificationFeed(value: unknown): NotificationFeed | null {
     total,
     totalPages,
     filter,
+    saasFilter,
     unreadCount,
   };
 }
