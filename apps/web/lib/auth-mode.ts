@@ -5,5 +5,6 @@ export const SAML_METADATA_PATH = "/api/auth/saml/metadata";
 export const SESSION_COOKIE_NAME = "hitowa_session";
 
 export function isMockAuthEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.USE_MOCK_AUTH !== "false";
+  const value = (env.USE_MOCK_AUTH ?? env.NEXT_PUBLIC_USE_MOCK_AUTH)?.trim();
+  return value !== "false";
 }

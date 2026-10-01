@@ -18,15 +18,24 @@ export function isPublicAuthPath(pathname: string): boolean {
   );
 }
 
+export function isLocalDevHost(hostname: string | undefined): boolean {
+  const host = hostname?.split(":")[0] ?? "";
+  return host === "localhost" || host === "127.0.0.1";
+}
+
 export function shouldRedirectUnauthenticated(
   pathname: string,
   hasSession: boolean,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  hostname?: string
 ): boolean {
-  if (isMockAuthEnabled(env) || isPublicAuthPath(pathname)) {
+  if (isPublicAuthPath(pathname) || hasSession) {
     return false;
   }
-  return !hasSession;
+  if (isMockAuthEnabled(env) && isLocalDevHost(hostname)) {
+    return false;
+  }
+  return true;
 }
 
 export function samlLoginRedirectUrl(origin: string): string {

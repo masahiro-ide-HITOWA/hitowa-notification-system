@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  hasSessionCookie,
+  isLocalDevHost,
   isPublicAuthPath,
   shouldRedirectUnauthenticated,
 } from "../apps/web/lib/auth-guard";
+import { isMockAuthEnabled } from "../apps/web/lib/auth-mode";
+import { resolvePortalUser } from "../apps/web/lib/auth-session";
 
 describe("auth guard", () => {
   it("allows SAML and webhook paths without a session", () => {
@@ -13,18 +17,43 @@ describe("auth guard", () => {
     expect(isPublicAuthPath("/mypage")).toBe(false);
   });
 
-  it("does not redirect when mock auth is enabled", () => {
+  it("does not redirect localhost when mock auth is enabled", () => {
     expect(
-      shouldRedirectUnauthenticated("/mypage", false, { USE_MOCK_AUTH: "true" })
+      shouldRedirectUnauthenticated("/mypage", false, { USE_MOCK_AUTH: "true" }, "localhost")
     ).toBe(false);
+  });
+
+  it("redirects Amplify hosts even if mock env is missing at the Edge", () => {
+    expect(
+      shouldRedirectUnauthenticated("/mypage", false, {}, "main.d17na73qopyazf.amplifyapp.com")
+    ).toBe(true);
   });
 
   it("redirects protected pages to SAML when mock auth is off and there is no session", () => {
     const samlEnv = { USE_MOCK_AUTH: "false" };
-    expect(shouldRedirectUnauthenticated("/mypage", false, samlEnv)).toBe(true);
-    expect(shouldRedirectUnauthenticated("/mypage", true, samlEnv)).toBe(false);
-    expect(shouldRedirectUnauthenticated("/api/auth/saml/login", false, samlEnv)).toBe(
+    expect(shouldRedirectUnauthenticated("/mypage", false, samlEnv, "localhost")).toBe(true);
+    expect(shouldRedirectUnauthenticated("/settings", false, samlEnv, "localhost")).toBe(true);
+    expect(shouldRedirectUnauthenticated("/mypage", true, samlEnv, "localhost")).toBe(false);
+    expect(shouldRedirectUnauthenticated("/api/auth/saml/login", false, samlEnv, "localhost")).toBe(
       false
     );
+  });
+
+  it("treats an empty hitowa_session cookie as unauthenticated", () => {
+    expect(hasSessionCookie(null)).toBe(false);
+    expect(hasSessionCookie("hitowa_session=")).toBe(false);
+    expect(hasSessionCookie("hitowa_session=abc.def")).toBe(true);
+    expect(isLocalDevHost("localhost:3000")).toBe(true);
+    expect(isLocalDevHost("main.amplifyapp.com")).toBe(false);
+  });
+});
+
+describe("resolvePortalUser without mock", () => {
+  it("never returns a demo user when USE_MOCK_AUTH is false", () => {
+    const env = { USE_MOCK_AUTH: "false" };
+    expect(resolvePortalUser(undefined, env)).toBeNull();
+    expect(resolvePortalUser("", env)).toBeNull();
+    expect(resolvePortalUser("not-a-valid-token", env)).toBeNull();
+    expect(isMockAuthEnabled({ NEXT_PUBLIC_USE_MOCK_AUTH: "false" })).toBe(false);
   });
 });

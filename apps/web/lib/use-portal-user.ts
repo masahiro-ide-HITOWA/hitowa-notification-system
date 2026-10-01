@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DEMO_USER_PROFILE, type PortalUserProfile } from "@/lib/saml-user-attributes";
+import type { PortalUserProfile } from "@/lib/saml-user-attributes";
 
 export type AuthMode = "mock" | "saml";
 
@@ -9,8 +9,8 @@ export function usePortalUser(): {
   user: PortalUserProfile | null;
   authMode: AuthMode;
 } {
-  const [user, setUser] = useState<PortalUserProfile | null>(DEMO_USER_PROFILE);
-  const [authMode, setAuthMode] = useState<AuthMode>("mock");
+  const [user, setUser] = useState<PortalUserProfile | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>("saml");
 
   useEffect(() => {
     void fetch("/api/auth/me")

@@ -92,7 +92,11 @@ export function resolvePortalUser(
   if (isMockAuthEnabled(env)) {
     return DEMO_USER_PROFILE;
   }
-  return verifySessionToken(sessionToken, Date.now(), env);
+  const token = sessionToken?.trim();
+  if (!token) {
+    return null;
+  }
+  return verifySessionToken(token, Date.now(), env);
 }
 
 export function sessionCookieFromHeader(cookieHeader: string | null): string | undefined {

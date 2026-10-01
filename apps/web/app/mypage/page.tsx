@@ -5,6 +5,9 @@ import { SAML_LOGIN_PATH } from "@/lib/auth-mode";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function MyPage() {
   const user = resolvePortalUser((await cookies()).get(SESSION_COOKIE_NAME)?.value);
   if (!user) {
