@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PAGE_NO_CACHE_HEADERS,
   hasSessionCookie,
   isLocalDevHost,
   isPublicAuthPath,
@@ -37,6 +38,11 @@ describe("auth guard", () => {
     expect(shouldRedirectUnauthenticated("/api/auth/saml/login", false, samlEnv, "localhost")).toBe(
       false
     );
+  });
+
+  it("exposes no-store headers for Amplify/CloudFront", () => {
+    expect(PAGE_NO_CACHE_HEADERS["Cache-Control"]).toContain("no-store");
+    expect(PAGE_NO_CACHE_HEADERS.Pragma).toBe("no-cache");
   });
 
   it("treats an empty hitowa_session cookie as unauthenticated", () => {

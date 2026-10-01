@@ -38,8 +38,19 @@ export function shouldRedirectUnauthenticated(
   return true;
 }
 
+export const PAGE_NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  Pragma: "no-cache",
+} as const;
+
 export function samlLoginRedirectUrl(origin: string): string {
   return new URL(SAML_LOGIN_PATH, origin).toString();
+}
+
+export function logAuthGuardCookies(
+  cookieList: ReadonlyArray<{ name: string; value: string }>
+): void {
+  console.log("[AUTH GUARD CHECK]", cookieList);
 }
 
 export function hasSessionCookie(
