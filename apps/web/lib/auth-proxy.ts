@@ -24,19 +24,3 @@ export function runAuthProxy(request: NextRequest): NextResponse {
   const loginUrl = samlLoginRedirectUrl(resolveRequestOrigin(request));
   return applyPageNoCache(NextResponse.redirect(loginUrl, 302));
 }
-
-export const authProxyConfig = {
-  matcher: [
-    "/",
-    "/mypage",
-    "/mypage/:path*",
-    "/settings",
-    "/settings/:path*",
-    "/notifications",
-    "/notifications/:path*",
-    "/mail",
-    "/mail/:path*",
-    "/saas/:path*",
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
-};
