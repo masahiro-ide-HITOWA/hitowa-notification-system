@@ -1,3 +1,4 @@
+import { inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -105,6 +106,7 @@ describe("formatCertificate", () => {
         wantAuthnResponseSigned: boolean;
         signatureAlgorithm: string;
         acceptedClockSkewMs: number;
+        forceAuthn: boolean;
       };
       calcMaxAgeAssertionTime: (
         maxAssertionAgeMs: number,
@@ -119,9 +121,27 @@ describe("formatCertificate", () => {
     expect(client.options.wantAuthnResponseSigned).toBe(false);
     expect(client.options.signatureAlgorithm).toBe("sha256");
     expect(client.options.acceptedClockSkewMs).toBe(5 * 60 * 1000);
+    expect(client.options.forceAuthn).toBe(true);
     expect(client.calcMaxAgeAssertionTime(0, undefined as unknown as string, new Date().toISOString())).toBe(
       Number.MAX_SAFE_INTEGER
     );
+  });
+
+  it("puts ForceAuthn on the AuthnRequest so the IdP cannot reuse SSO", async () => {
+    const client = createSamlClient({
+      entryPoint: samlEnv.SAML_ENTRY_POINT,
+      idpIssuer: samlEnv.SAML_IDP_ISSUER,
+      idpCert: "A".repeat(70),
+      issuer: samlEnv.SAML_ISSUER,
+      callbackUrl: samlEnv.SAML_CALLBACK_URL,
+    });
+    const authorizeUrl = await client.getAuthorizeUrlAsync("", "portal.example.test", {
+      forceAuthn: true,
+    });
+    const samlRequest = new URL(authorizeUrl).searchParams.get("SAMLRequest");
+    expect(samlRequest).toBeTruthy();
+    const xml = inflateRawSync(Buffer.from(samlRequest ?? "", "base64")).toString("utf8");
+    expect(xml).toContain('ForceAuthn="true"');
   });
 
   it("wraps a one-line cert body", () => {

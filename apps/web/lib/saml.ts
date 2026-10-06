@@ -129,7 +129,7 @@ export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
     wantAuthnResponseSigned: false,
     signatureAlgorithm: "sha256" as const,
     acceptedClockSkewMs: ACCEPTED_CLOCK_SKEW_MS,
-    forceAuthn: true,
+    forceAuthn: true, // IdP 側で強制的に再ログイン画面を表示させる
     identifierFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
   };
   return new ClockSkewSAML(
