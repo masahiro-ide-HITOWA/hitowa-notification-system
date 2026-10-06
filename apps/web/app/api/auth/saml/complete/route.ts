@@ -1,23 +1,48 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isMockAuthEnabled, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
-import { absoluteUrlFromRequest } from "@/lib/request-origin";
-import { sessionCookieOptions, verifySessionToken } from "@/lib/auth-session";
+import { verifySessionToken } from "@/lib/auth-session";
 
-async function attachSessionCookie(
-  response: NextResponse,
-  token: string,
-  request: Request
-): Promise<NextResponse> {
-  const options = sessionCookieOptions(request);
+const MYPAGE_NAVIGATION_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="refresh" content="0;url=/mypage">
+  </head>
+  <body>
+    <script>window.location.href = '/mypage';</script>
+  </body>
+</html>
+`;
+
+const SESSION_COOKIE = {
+  path: "/",
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax" as const,
+  maxAge: 60 * 60 * 24 * 7,
+};
+
+async function sessionNavigationResponse(sessionToken: string): Promise<NextResponse> {
+  const response = new NextResponse(MYPAGE_NAVIGATION_HTML, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
+
   try {
     const jar = await cookies();
-    jar.set(SESSION_COOKIE_NAME, token, options);
+    jar.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE);
   } catch {
     // Route-handler unit tests have no Next.js cookie store.
   }
-  response.cookies.set(SESSION_COOKIE_NAME, token, options);
-  response.headers.set("Cache-Control", "no-store");
+
+  response.cookies.set({
+    name: SESSION_COOKIE_NAME,
+    value: sessionToken,
+    ...SESSION_COOKIE,
+  });
   return response;
 }
 
@@ -37,6 +62,5 @@ export async function GET(request: Request) {
     );
   }
 
-  const response = NextResponse.redirect(absoluteUrlFromRequest("/mypage", request), 303);
-  return attachSessionCookie(response, ticket, request);
+  return sessionNavigationResponse(ticket);
 }

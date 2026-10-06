@@ -212,7 +212,7 @@ describe("SAML routes with mock auth", () => {
     );
   });
 
-  it("complete GET writes the session cookie then redirects to mypage", async () => {
+  it("complete GET sets the session cookie and returns HTML that navigates to mypage", async () => {
     const previous = process.env.USE_MOCK_AUTH;
     process.env.USE_MOCK_AUTH = "false";
     try {
@@ -221,10 +221,19 @@ describe("SAML routes with mock auth", () => {
       const res = await completeGet(
         new Request("http://localhost/api/auth/saml/complete?t=" + encodeURIComponent(token))
       );
-      expect(res.status).toBe(303);
-      expect(res.headers.get("location")).toBe("http://localhost/mypage");
-      expect(res.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
-      expect(res.headers.get("set-cookie") ?? "").toMatch(/Path=\//i);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("content-type")).toContain("text/html");
+      expect(res.headers.get("cache-control")).toContain("no-store");
+      const html = await res.text();
+      expect(html).toContain("window.location.href = '/mypage'");
+      expect(html).toContain('content="0;url=/mypage"');
+      const setCookie = res.headers.get("set-cookie") ?? "";
+      expect(setCookie).toMatch(/hitowa_session=/);
+      expect(setCookie).toMatch(/Path=\//i);
+      expect(setCookie).toMatch(/HttpOnly/i);
+      expect(setCookie).toMatch(/Secure/i);
+      expect(setCookie).toMatch(/SameSite=Lax/i);
     } finally {
       if (previous === undefined) {
         delete process.env.USE_MOCK_AUTH;
