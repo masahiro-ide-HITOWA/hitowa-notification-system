@@ -122,7 +122,7 @@ describe("fetchSaasInboxEmails", () => {
     });
     expect(notifications).toHaveLength(1);
     expect(notifications[0]?.systemName).toBe("TOKIUM");
-    expect(notifications[0]?.recipientEmail).toBe("masahiro-ide@hitowa.com");
+    expect(notifications[0]?.recipientEmail).toBe("saas-inbox@kagoya.jp");
   });
   it("throws CONFIG_MISSING when credentials cannot be loaded", async () => {
     await expect(

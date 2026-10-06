@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSamlClient, isMockAuthEnabled, MissingSamlEnvError, SAML_CALLBACK_PATH } from "@/lib/saml";
-import { hostnameFromRequest } from "@/lib/auth-mode";
-import { absoluteUrlFromRequest, resolveRequestOrigin } from "@/lib/request-origin";
+import { getSamlClient, MissingSamlEnvError, SAML_CALLBACK_PATH } from "@/lib/saml";
+import { resolveRequestOrigin } from "@/lib/request-origin";
 
 export async function GET(request: Request) {
-  if (isMockAuthEnabled(process.env, hostnameFromRequest(request))) {
-    return NextResponse.redirect(absoluteUrlFromRequest("/", request));
-  }
   try {
     const saml = getSamlClient();
     const relayState = new URL(request.url).searchParams.get("RelayState") ?? "";

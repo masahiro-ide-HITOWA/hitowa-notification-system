@@ -3,10 +3,8 @@ export const FIELD_MAIL_SETTINGS_TITLE = "📧 Webメール接続設定（KAGOYA
 
 export type MypageMailSettingsView = "excluded" | "settings";
 
-const WEB_MAIL_EMPLOYEE_IDS = new Set(["00400999"]);
-
-export function mypageMailSettingsView(email?: string, portalUserId?: string): MypageMailSettingsView {
-  return canUseWebMail(email, portalUserId) ? "settings" : "excluded";
+export function mypageMailSettingsView(email?: string): MypageMailSettingsView {
+  return canUseWebMail(email) ? "settings" : "excluded";
 }
 
 export const WEB_MAIL_NEEDS_SETTINGS_NOTE =
@@ -21,14 +19,10 @@ export function isMailAccountConfigured(username?: string, hasPassword?: boolean
 export function resolveWebMailNavMode(
   email: string | undefined,
   username?: string,
-  hasPassword?: boolean,
-  portalUserId?: string
+  hasPassword?: boolean
 ): WebMailNavMode {
-  if (!canUseWebMail(email, portalUserId)) {
+  if (!canUseWebMail(email)) {
     return "hq-excluded";
-  }
-  if (WEB_MAIL_EMPLOYEE_IDS.has(portalUserId?.trim() ?? "")) {
-    return "enabled";
   }
   if (!isMailAccountConfigured(username, hasPassword)) {
     return "needs-settings";
@@ -36,11 +30,7 @@ export function resolveWebMailNavMode(
   return "enabled";
 }
 
-export function canUseWebMail(email?: string, portalUserId?: string): boolean {
-  const employeeId = portalUserId?.trim() ?? "";
-  if (WEB_MAIL_EMPLOYEE_IDS.has(employeeId)) {
-    return true;
-  }
+export function canUseWebMail(email?: string): boolean {
   if (!email) {
     return false;
   }

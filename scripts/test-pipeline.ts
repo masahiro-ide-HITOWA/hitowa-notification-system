@@ -17,7 +17,7 @@ Date: Thu, 03 Sep 2026 10:00:00 +0900
 
 ----------------------------------------
 ■ 対象者情報
-社員番号：00400611
+社員番号：${process.env.PORTAL_USER_ID}
 提出期限：2026/09/15
 
 ■ 入力・提出用URL
@@ -34,7 +34,7 @@ async function runPipelineTest() {
   // STEP 1: 6桁ワンタイムコードの発行テスト
   console.log('【STEP 1】マイページからの6桁ワンタイムコード発行...');
   const codeRes = await fetch(`${BASE_URL}/api/auth/code`, {
-    headers: { 'x-user-id': '00400611' }
+    headers: { 'x-user-id': process.env.PORTAL_USER_ID ?? '' }
   });
   const codeData = (await codeRes.json()) as any;
   

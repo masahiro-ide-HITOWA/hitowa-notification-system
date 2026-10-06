@@ -15,7 +15,7 @@ export async function parseSaaSNotificationMail(
 
   // 1. カオナビ からの通知メールの解析
   if (fromAddress.includes('kaonavi.jp') || subject.includes('【カオナビ】')) {
-    // 例: 本文内の "社員番号：00400611" または宛先メールアドレスのユーザー名から社員IDを抽出
+    // 本文の社員番号、または宛先メールアドレスのユーザー名から社員IDを抽出
     const empIdMatch = textBody.match(/社員番号[：:]\s*([A-Za-z0-0]+)/) || textBody.match(/([0-9]{6,8})/);
     const deadlineMatch = textBody.match(/提出期限[：:]\s*([0-9]{4}\/[0-9]{1,2}\/[0-9]{1,2}|[0-9]{1,2}月[0-9]{1,2}日)/);
     const urlMatch = textBody.match(/(https?:\/\/[\w!?/+\-_~;.,*&@#$%()=[\]]+kaonavi\.jp[\w!?/+\-_~;.,*&@#$%()=[\]]*)/);

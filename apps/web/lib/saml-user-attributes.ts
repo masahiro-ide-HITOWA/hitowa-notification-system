@@ -13,20 +13,15 @@ export interface PortalUserProfile extends SamlUserAttributes {
   portalUserId: string;
 }
 
-export const FALLBACK_SAML_ATTRIBUTES: SamlUserAttributes = {
-  name: "井出征希テスト",
-  email: "masahiro-ide@hitowa.com",
-  companyCode: "100",
-  companyName: "株式会社HITOWA",
-  divisionName: "情報システム部",
-  officeCode: "1",
-  positionCode: "1570",
-  employmentCode: "1",
-};
-
-export const DEMO_USER_PROFILE: PortalUserProfile = {
-  portalUserId: "00400611",
-  ...FALLBACK_SAML_ATTRIBUTES,
+export const EMPTY_SAML_ATTRIBUTES: SamlUserAttributes = {
+  name: "",
+  email: "",
+  companyCode: "",
+  companyName: "",
+  divisionName: "",
+  officeCode: "",
+  positionCode: "",
+  employmentCode: "",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,28 +34,31 @@ function readString(value: unknown, fallback: string): string {
 
 export function mergeSamlAttributes(raw: unknown): SamlUserAttributes {
   if (!isRecord(raw)) {
-    return { ...FALLBACK_SAML_ATTRIBUTES };
+    return { ...EMPTY_SAML_ATTRIBUTES };
   }
 
   return {
-    name: readString(raw.name, FALLBACK_SAML_ATTRIBUTES.name),
-    email: readString(raw.email, FALLBACK_SAML_ATTRIBUTES.email),
-    companyCode: readString(raw.companyCode, FALLBACK_SAML_ATTRIBUTES.companyCode),
-    companyName: readString(raw.companyName, FALLBACK_SAML_ATTRIBUTES.companyName),
-    divisionName: readString(raw.divisionName, FALLBACK_SAML_ATTRIBUTES.divisionName),
-    officeCode: readString(raw.officeCode, FALLBACK_SAML_ATTRIBUTES.officeCode),
-    positionCode: readString(raw.positionCode, FALLBACK_SAML_ATTRIBUTES.positionCode),
-    employmentCode: readString(raw.employmentCode, FALLBACK_SAML_ATTRIBUTES.employmentCode),
+    name: readString(raw.name, ""),
+    email: readString(raw.email, ""),
+    companyCode: readString(raw.companyCode, ""),
+    companyName: readString(raw.companyName, ""),
+    divisionName: readString(raw.divisionName, ""),
+    officeCode: readString(raw.officeCode, ""),
+    positionCode: readString(raw.positionCode, ""),
+    employmentCode: readString(raw.employmentCode, ""),
   };
 }
 
 export function parseIssueCodeRequest(
   body: unknown,
   headerUserId: string | null
-): { portalUserId: string; attributes: SamlUserAttributes } {
+): { portalUserId: string; attributes: SamlUserAttributes } | null {
   const data = isRecord(body) ? body : {};
   const bodyUserId = readString(data.portalUserId, "");
-  const portalUserId = headerUserId || bodyUserId || DEMO_USER_PROFILE.portalUserId;
+  const portalUserId = (headerUserId?.trim() || bodyUserId).trim();
+  if (portalUserId === "") {
+    return null;
+  }
 
   return {
     portalUserId,

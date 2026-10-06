@@ -43,12 +43,8 @@ export function hostnameFromRequest(request: Request): string {
 }
 
 export function isMockAuthEnabled(
-  env: NodeJS.ProcessEnv = process.env,
-  hostname?: string
+  _env: NodeJS.ProcessEnv = process.env,
+  _hostname?: string
 ): boolean {
-  if (!isLocalDevHost(hostname)) {
-    return false;
-  }
-  const value = (env.USE_MOCK_AUTH ?? env.NEXT_PUBLIC_USE_MOCK_AUTH)?.trim();
-  return value !== "false";
+  return false;
 }

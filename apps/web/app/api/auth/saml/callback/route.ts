@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { hostnameFromRequest, SAML_COMPLETE_PATH } from "@/lib/auth-mode";
-import { getSamlClient, isMockAuthEnabled } from "@/lib/saml";
+import { SAML_COMPLETE_PATH } from "@/lib/auth-mode";
+import { getSamlClient } from "@/lib/saml";
 import { absoluteUrlFromRequest } from "@/lib/request-origin";
 import { profileFromSamlAttributes, samlBodyFromRequestData } from "@/lib/saml-profile";
 import { createSessionToken } from "@/lib/auth-session";
@@ -20,13 +20,6 @@ async function readCallbackBody(request: Request): Promise<unknown> {
 }
 
 export async function POST(request: Request) {
-  if (isMockAuthEnabled(process.env, hostnameFromRequest(request))) {
-    return NextResponse.json(
-      { success: false, message: "モック認証中のため SAML コールバックは無効です" },
-      { status: 400 }
-    );
-  }
-
   try {
     const body = samlBodyFromRequestData(await readCallbackBody(request));
     if (!body) {

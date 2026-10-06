@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
-import { hostnameFromRequest } from "@/lib/auth-mode";
-import { getSamlClient, isMockAuthEnabled } from "@/lib/saml";
+import { getSamlClient } from "@/lib/saml";
 
-export async function GET(request: Request) {
-  if (isMockAuthEnabled(process.env, hostnameFromRequest(request))) {
-    return NextResponse.json(
-      { success: false, message: "モック認証中のため SAML Metadata は無効です" },
-      { status: 404 }
-    );
-  }
+export async function GET() {
   try {
     const xml = getSamlClient().generateServiceProviderMetadata(null);
     return new NextResponse(xml, {

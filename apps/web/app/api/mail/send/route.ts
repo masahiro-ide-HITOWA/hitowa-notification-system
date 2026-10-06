@@ -8,8 +8,6 @@ import {
   parseSendMailPayload,
   readTrimmedTo,
 } from "@/lib/mail-smtp-model";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
-
 export async function POST(request: Request) {
   let body: unknown = {};
   try {
@@ -27,7 +25,7 @@ export async function POST(request: Request) {
       null
     ) ?? sessionActor;
 
-  const forbidden = mailForbiddenIfHq(actor.email, actor.portalUserId);
+  const forbidden = mailForbiddenIfHq(actor.email);
   if (forbidden) {
     return forbidden;
   }
@@ -50,7 +48,7 @@ export async function POST(request: Request) {
   try {
     const result = await sendMail(actor.portalUserId, {
       ...payload,
-      fromName: payload.fromName ?? DEMO_USER_PROFILE.name,
+      fromName: payload.fromName ?? "",
       fromEmail: payload.fromEmail ?? actor.email,
     });
     return NextResponse.json(result);

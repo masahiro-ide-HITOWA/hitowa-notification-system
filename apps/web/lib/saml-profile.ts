@@ -1,7 +1,4 @@
-import {
-  FALLBACK_SAML_ATTRIBUTES,
-  type PortalUserProfile,
-} from "@/lib/saml-user-attributes";
+import { type PortalUserProfile } from "@/lib/saml-user-attributes";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -66,23 +63,19 @@ export function profileFromSamlAttributes(profile: Record<string, unknown>): Por
     employeeCandidates.find((value) => isEmployeeNumber(value)) ??
     employeeCandidates.find((value) => !value.includes("@")) ??
     "";
-  const divisionName =
-    firstString(profile, ["department", "divisionName", "Department"]) ??
-    FALLBACK_SAML_ATTRIBUTES.divisionName;
-  const name =
-    firstString(profile, ["displayName", "name", "cn"]) ??
-    FALLBACK_SAML_ATTRIBUTES.name;
+  const divisionName = firstString(profile, ["department", "divisionName", "Department"]) ?? "";
+  const name = firstString(profile, ["displayName", "name", "cn"]) ?? "";
 
   return {
     portalUserId,
     email,
     name,
     divisionName,
-    companyCode: FALLBACK_SAML_ATTRIBUTES.companyCode,
-    companyName: FALLBACK_SAML_ATTRIBUTES.companyName,
-    officeCode: FALLBACK_SAML_ATTRIBUTES.officeCode,
-    positionCode: FALLBACK_SAML_ATTRIBUTES.positionCode,
-    employmentCode: FALLBACK_SAML_ATTRIBUTES.employmentCode,
+    companyCode: "",
+    companyName: "",
+    officeCode: "",
+    positionCode: "",
+    employmentCode: "",
   };
 }
 

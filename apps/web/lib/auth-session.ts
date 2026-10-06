@@ -1,7 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { PortalUserProfile } from "@/lib/saml-user-attributes";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
-import { isMockAuthEnabled, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import { SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 
 export { SESSION_COOKIE_NAME };
 export const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
@@ -74,11 +73,15 @@ export function verifySessionToken(
       return null;
     }
     return {
-      ...DEMO_USER_PROFILE,
       portalUserId: payload.portalUserId,
       email: payload.email,
       name: payload.name,
       divisionName: payload.divisionName,
+      companyCode: "",
+      companyName: "",
+      officeCode: "",
+      positionCode: "",
+      employmentCode: "",
     };
   } catch {
     return null;
@@ -90,9 +93,7 @@ export function resolvePortalUser(
   env: NodeJS.ProcessEnv = process.env,
   hostname?: string
 ): PortalUserProfile | null {
-  if (isMockAuthEnabled(env, hostname)) {
-    return DEMO_USER_PROFILE;
-  }
+  void hostname;
   const token = sessionToken?.trim();
   if (!token) {
     return null;
@@ -175,7 +176,7 @@ export function sessionCookieClearOptions(
 }
 
 export const LOGOUT_CACHE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  "Cache-Control": "no-store, no-cache, must-revalidate",
   Pragma: "no-cache",
   Expires: "0",
 } as const;

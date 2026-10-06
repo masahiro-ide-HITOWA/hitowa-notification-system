@@ -1,6 +1,5 @@
 import {
   isLocalDevHost,
-  isMockAuthEnabled,
   SAML_LOGIN_PATH,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth-mode";
@@ -33,10 +32,9 @@ export function shouldRedirectUnauthenticated(
   env: NodeJS.ProcessEnv = process.env,
   hostname?: string
 ): boolean {
+  void env;
+  void hostname;
   if (isPublicAuthPath(pathname) || hasSession) {
-    return false;
-  }
-  if (isMockAuthEnabled(env, hostname)) {
     return false;
   }
   return true;
@@ -47,14 +45,12 @@ export function resolveGuardedPortalUser(
   hostname: string | undefined,
   env: NodeJS.ProcessEnv = process.env
 ): PortalUserProfile | null {
-  if (!isLocalDevHost(hostname)) {
-    const token = sessionToken?.trim() ?? "";
-    if (token === "") {
-      return null;
-    }
-    return resolvePortalUser(token, { ...env, USE_MOCK_AUTH: "false" }, hostname);
+  void hostname;
+  const token = sessionToken?.trim() ?? "";
+  if (token === "") {
+    return null;
   }
-  return resolvePortalUser(sessionToken, env, hostname);
+  return resolvePortalUser(token, env);
 }
 
 export const PAGE_NO_CACHE_HEADERS = {

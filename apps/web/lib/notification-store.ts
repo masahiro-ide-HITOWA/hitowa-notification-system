@@ -1,11 +1,7 @@
 import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
+import { isDynamoValidationError } from "@/lib/email-notification";
 import {
-  isDynamoTableMissing,
-  isDynamoValidationError,
-} from "@/lib/email-notification";
-import {
-  getNotificationsForUser,
   notificationsFromDynamoItems,
   type NotificationItem,
 } from "@/lib/notifications";
@@ -57,17 +53,10 @@ export async function loadNotificationsForUser(
         if (scanError instanceof Error) {
           console.error(scanError.stack);
         }
-        if (isDynamoTableMissing(scanError)) {
-          return getNotificationsForUser(portalUserId);
-        }
-        return getNotificationsForUser(portalUserId);
+        return [];
       }
     }
 
-    if (isDynamoTableMissing(error)) {
-      return getNotificationsForUser(portalUserId);
-    }
-
-    return getNotificationsForUser(portalUserId);
+    return [];
   }
 }

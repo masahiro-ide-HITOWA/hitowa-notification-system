@@ -3,30 +3,37 @@ import { describe, expect, it } from "vitest";
 import {
   countUnreadNotifications,
   formatUnreadBadge,
-  getNotificationsForUser,
   notificationsFromDynamoItems,
   parseNotificationList,
   parseNotificationsPortalUserId,
   sortNotificationsByCreatedAtDesc,
+  type NotificationItem,
 } from "../apps/web/lib/notifications";
 
+const inbox: NotificationItem[] = [
+  {
+    id: "newer",
+    portalUserId: "user-1",
+    systemName: "カオナビ",
+    title: "評価シート提出リマインド",
+    body: "提出してください。",
+    isRead: false,
+    createdAt: "2026-09-17T09:00:00+09:00",
+  },
+  {
+    id: "older",
+    portalUserId: "user-1",
+    systemName: "TOKIUM",
+    title: "経費申請",
+    body: "承認してください。",
+    isRead: false,
+    createdAt: "2026-09-16T14:30:00+09:00",
+  },
+];
+
 describe("notifications", () => {
-  it("returns only the signed-in user's notifications", () => {
-    const items = getNotificationsForUser("00400611");
-    expect(items.length).toBeGreaterThan(0);
-    expect(items.every((item) => item.portalUserId === "00400611")).toBe(true);
-    expect(items.some((item) => item.systemName === "カオナビ")).toBe(true);
-    expect(items.some((item) => item.systemName === "TOKIUM")).toBe(true);
-  });
-
-  it("excludes other users' notifications", () => {
-    const items = getNotificationsForUser("00400611");
-    expect(items.some((item) => item.id === "ntf-other-user")).toBe(false);
-  });
-
   it("counts unread items", () => {
-    const items = getNotificationsForUser("00400611");
-    expect(countUnreadNotifications(items)).toBe(2);
+    expect(countUnreadNotifications(inbox)).toBe(2);
     expect(formatUnreadBadge(2)).toBe("2");
     expect(formatUnreadBadge(0)).toBeNull();
     expect(formatUnreadBadge(-1)).toBeNull();
@@ -38,7 +45,7 @@ describe("notifications", () => {
   });
 
   it("parses a notification JSON array without any", () => {
-    const parsed = parseNotificationList(getNotificationsForUser("00400611"));
+    const parsed = parseNotificationList(inbox);
     expect(parsed).not.toBeNull();
     expect(parsed?.[0]?.title).toContain("評価");
   });
@@ -47,7 +54,7 @@ describe("notifications", () => {
     const items = notificationsFromDynamoItems([
       {
         id: "old",
-        portalUserId: "00400611",
+        portalUserId: "user-1",
         systemName: "全社ポータル",
         title: "古い",
         body: "old",
@@ -56,7 +63,7 @@ describe("notifications", () => {
       },
       {
         id: "new",
-        portalUserId: "00400611",
+        portalUserId: "user-1",
         systemName: "カオナビ",
         title: "新しい",
         body: "new",
@@ -72,7 +79,7 @@ describe("notifications", () => {
     const items = notificationsFromDynamoItems([
       {
         id: "new",
-        portalUserId: "00400611",
+        portalUserId: "user-1",
         systemName: "カオナビ",
         title: "新しい",
         body: "new",
@@ -89,8 +96,8 @@ describe("notifications", () => {
     expect(notificationsFromDynamoItems(undefined)).toEqual([]);
   });
 
-  it("keeps mock inbox newest-first", () => {
-    const items = sortNotificationsByCreatedAtDesc(getNotificationsForUser("00400611"));
-    expect(items[0]?.createdAt >= (items[1]?.createdAt ?? "")).toBe(true);
+  it("sorts newest notifications first", () => {
+    const items = sortNotificationsByCreatedAtDesc(inbox);
+    expect(items[0]?.id).toBe("newer");
   });
 });

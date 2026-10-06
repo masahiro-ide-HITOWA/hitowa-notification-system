@@ -10,7 +10,6 @@ import {
 } from "../apps/web/lib/auth-guard";
 import { isMockAuthEnabled } from "../apps/web/lib/auth-mode";
 import { resolvePortalUser } from "../apps/web/lib/auth-session";
-import { DEMO_USER_PROFILE } from "../apps/web/lib/saml-user-attributes";
 
 describe("auth guard", () => {
   it("allows SAML and webhook paths without a session", () => {
@@ -20,10 +19,10 @@ describe("auth guard", () => {
     expect(isPublicAuthPath("/mypage")).toBe(false);
   });
 
-  it("does not redirect localhost when mock auth is enabled", () => {
+  it("redirects localhost when there is no session", () => {
     expect(
       shouldRedirectUnauthenticated("/mypage", false, { USE_MOCK_AUTH: "true" }, "localhost")
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("redirects Amplify hosts even if mock env is missing at the Edge", () => {
@@ -70,8 +69,6 @@ describe("resolvePortalUser without mock", () => {
     expect(resolveGuardedPortalUser(undefined, amplify, { USE_MOCK_AUTH: "true" })).toBeNull();
     expect(resolveGuardedPortalUser("", amplify, {})).toBeNull();
     expect(resolveGuardedPortalUser("not-a-valid-token", amplify, { USE_MOCK_AUTH: "true" })).toBeNull();
-    expect(resolveGuardedPortalUser(undefined, "localhost", { USE_MOCK_AUTH: "true" })).toEqual(
-      DEMO_USER_PROFILE
-    );
+    expect(resolveGuardedPortalUser(undefined, "localhost", { USE_MOCK_AUTH: "true" })).toBeNull();
   });
 });

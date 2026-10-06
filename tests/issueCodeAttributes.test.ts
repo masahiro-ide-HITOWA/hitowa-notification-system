@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  FALLBACK_SAML_ATTRIBUTES,
+  EMPTY_SAML_ATTRIBUTES,
   parseIssueCodeRequest,
 } from "../apps/web/lib/saml-user-attributes";
 
@@ -27,14 +27,14 @@ describe("parseIssueCodeRequest", () => {
     expect(result.attributes.companyName).toBe("株式会社HITOWA");
     expect(result.attributes.divisionName).toBe("情報システム部");
     expect(result.attributes.officeCode).toBe("99");
-    expect(result.attributes.companyCode).toBe(FALLBACK_SAML_ATTRIBUTES.companyCode);
+    expect(result?.attributes.companyCode).toBe("");
   });
 
-  it("falls back to demo SAML attributes when the body has no attributes", () => {
+  it("keeps missing attributes empty and rejects a request without a user id", () => {
     const result = parseIssueCodeRequest({}, "header-user");
-    expect(result.portalUserId).toBe("header-user");
-    expect(result.attributes).toEqual(FALLBACK_SAML_ATTRIBUTES);
-    expect(result.attributes.email).toBe("masahiro-ide@hitowa.com");
-    expect(result.attributes.divisionName).toBe("情報システム部");
+    expect(result?.portalUserId).toBe("header-user");
+    expect(result?.attributes).toEqual(EMPTY_SAML_ATTRIBUTES);
+    expect(parseIssueCodeRequest({}, null)).toBeNull();
+    expect(parseIssueCodeRequest({}, "  ")).toBeNull();
   });
 });

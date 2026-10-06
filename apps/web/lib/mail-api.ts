@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { isMailImapError, type MailImapError } from "@/lib/mail-imap-model";
 import { canUseWebMail } from "@/lib/mail-permission";
 import { parseMailSettingsActor } from "@/lib/mail-config";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
-import { hostnameFromRequest, isMockAuthEnabled } from "@/lib/auth-mode";
+import { hostnameFromRequest } from "@/lib/auth-mode";
 import { resolveGuardedPortalUser } from "@/lib/auth-guard";
 import { sessionCookieFromHeader } from "@/lib/auth-session";
 
@@ -13,22 +12,21 @@ export function mailActorFromRequest(request: Request): { portalUserId: string; 
     sessionCookieFromHeader(request.headers.get("cookie")),
     hostname
   );
-  const demo = isMockAuthEnabled(process.env, hostname) ? DEMO_USER_PROFILE : null;
   return (
     parseMailSettingsActor(
       {},
-      request.headers.get("x-user-id") ?? sessionUser?.portalUserId ?? demo?.portalUserId ?? null,
-      request.headers.get("x-user-email") ?? sessionUser?.email ?? demo?.email ?? null,
+      request.headers.get("x-user-id") ?? sessionUser?.portalUserId ?? null,
+      request.headers.get("x-user-email") ?? sessionUser?.email ?? null,
       new URL(request.url).searchParams.get("portalUserId")
     ) ?? {
-      portalUserId: sessionUser?.portalUserId ?? demo?.portalUserId ?? "",
-      email: sessionUser?.email ?? demo?.email ?? "",
+      portalUserId: sessionUser?.portalUserId ?? "",
+      email: sessionUser?.email ?? "",
     }
   );
 }
 
-export function mailForbiddenIfHq(email: string, portalUserId?: string): NextResponse | null {
-  if (canUseWebMail(email, portalUserId)) {
+export function mailForbiddenIfHq(email: string): NextResponse | null {
+  if (canUseWebMail(email)) {
     return null;
   }
   return NextResponse.json(

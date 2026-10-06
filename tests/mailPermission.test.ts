@@ -23,19 +23,6 @@ describe("canUseWebMail", () => {
     expect(canUseWebMail("masahiro-ide@gr.hitowa.com")).toBe(true);
   });
 
-  it("enables Web mail for employee 00400999 even on the HQ domain", () => {
-    expect(canUseWebMail("staff@hitowa.com", "00400999")).toBe(true);
-    expect(canUseWebMail(undefined, "00400999")).toBe(true);
-    expect(canUseWebMail("staff@hitowa.com", "00400611")).toBe(false);
-    expect(mypageMailSettingsView("staff@hitowa.com", "00400999")).toBe("settings");
-    expect(resolveWebMailNavMode("staff@hitowa.com", undefined, undefined, "00400999")).toBe(
-      "enabled"
-    );
-    expect(resolveWebMailNavMode("staff@hitowa.com", "user@kagoya.jp", true, "00400999")).toBe(
-      "enabled"
-    );
-  });
-
   it("returns false when the email is missing or invalid", () => {
     expect(canUseWebMail(undefined)).toBe(false);
     expect(canUseWebMail("")).toBe(false);

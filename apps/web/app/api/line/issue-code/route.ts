@@ -34,7 +34,14 @@ export async function POST(request: Request) {
       // JSON body が無い場合は無視
     }
 
-    const { portalUserId, attributes } = parseIssueCodeRequest(bodyData, headerUserId);
+    const parsed = parseIssueCodeRequest(bodyData, headerUserId);
+    if (!parsed) {
+      return NextResponse.json(
+        { success: false, error: "portalUserId が指定されていません" },
+        { status: 400 }
+      );
+    }
+    const { portalUserId, attributes } = parsed;
 
     // DynamoDBで必須となっている email キーを抽出・フォールバック作成
     const email =

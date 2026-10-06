@@ -7,11 +7,10 @@ import {
 
 interface MypageMailSettingsCardProps {
   email: string;
-  portalUserId?: string;
 }
 
-export function MypageMailSettingsCard({ email, portalUserId }: MypageMailSettingsCardProps) {
-  if (mypageMailSettingsView(email, portalUserId) === "excluded") {
+export function MypageMailSettingsCard({ email }: MypageMailSettingsCardProps) {
+  if (mypageMailSettingsView(email) === "excluded") {
     return (
       <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
         <p className="text-sm font-semibold text-amber-800">{HQ_WEB_MAIL_EXCLUDED_NOTE}</p>

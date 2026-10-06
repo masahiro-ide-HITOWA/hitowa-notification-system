@@ -9,7 +9,6 @@ import {
   resolvePortalUserIdFromMappings,
   shouldSkipLinePushForMappings,
 } from "@/lib/email-notification";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
 import { sendLinePushIfLinked } from "@/lib/line-push";
 
@@ -67,11 +66,7 @@ export async function ingestParsedEmailNotification(
     throw error;
   }
 
-  const portalUserId =
-    resolvePortalUserIdFromMappings(mappingItems, parsed.recipientEmail) ??
-    (parsed.recipientEmail.toLowerCase() === DEMO_USER_PROFILE.email.toLowerCase()
-      ? DEMO_USER_PROFILE.portalUserId
-      : null);
+  const portalUserId = resolvePortalUserIdFromMappings(mappingItems, parsed.recipientEmail);
   if (!portalUserId) {
     return { ok: false, status: 404, message: "宛先メールに対応するユーザーが見つかりません" };
   }

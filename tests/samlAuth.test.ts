@@ -19,7 +19,19 @@ import {
   readSamlEnv,
 } from "../apps/web/lib/saml";
 import { profileFromSamlAttributes, samlBodyFromRequestData } from "../apps/web/lib/saml-profile";
-import { DEMO_USER_PROFILE } from "../apps/web/lib/saml-user-attributes";
+import type { PortalUserProfile } from "../apps/web/lib/saml-user-attributes";
+
+const sampleUser: PortalUserProfile = {
+  portalUserId: "12345678",
+  email: "staff@gr.hitowa.com",
+  name: "現場太郎",
+  divisionName: "営業部",
+  companyCode: "",
+  companyName: "",
+  officeCode: "",
+  positionCode: "",
+  employmentCode: "",
+};
 import { originFromEnv, resolveRequestOrigin, samlLoginAbsoluteUrl } from "../apps/web/lib/request-origin";
 
 const samlEnv = {
@@ -32,11 +44,9 @@ const samlEnv = {
 };
 
 describe("isMockAuthEnabled", () => {
-  it("allows mock auth only on localhost when USE_MOCK_AUTH is not false", () => {
-    expect(isMockAuthEnabled({}, "localhost")).toBe(true);
-    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" }, "127.0.0.1:3000")).toBe(true);
-    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "false" }, "localhost")).toBe(false);
-    expect(isMockAuthEnabled({}, "main.d17na73qopyazf.amplifyapp.com")).toBe(false);
+  it("never enables a mock user", () => {
+    expect(isMockAuthEnabled({}, "localhost")).toBe(false);
+    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" }, "127.0.0.1:3000")).toBe(false);
     expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" }, "main.d17na73qopyazf.amplifyapp.com")).toBe(
       false
     );
@@ -191,18 +201,17 @@ describe("samlBodyFromRequestData", () => {
 describe("session token", () => {
   it("round-trips a profile and rejects tampering", () => {
     const env = { SESSION_SECRET: "test-secret" };
-    const token = createSessionToken(DEMO_USER_PROFILE, Date.now(), env);
+    const token = createSessionToken(sampleUser, Date.now(), env);
     expect(verifySessionToken(token, Date.now(), env)).toMatchObject({
-      email: DEMO_USER_PROFILE.email,
-      portalUserId: DEMO_USER_PROFILE.portalUserId,
+      email: sampleUser.email,
+      portalUserId: sampleUser.portalUserId,
+      companyCode: "",
     });
     expect(verifySessionToken(token.slice(0, -1) + "x", Date.now(), env)).toBeNull();
   });
 
-  it("uses demo profile when mock auth is enabled", () => {
-    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" }, "localhost")).toEqual(
-      DEMO_USER_PROFILE
-    );
+  it("returns null without a session token", () => {
+    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" }, "localhost")).toBeNull();
     expect(
       resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" }, "main.d17na73qopyazf.amplifyapp.com")
     ).toBeNull();
@@ -237,27 +246,21 @@ describe("session token", () => {
 });
 
 describe("SAML routes with mock auth", () => {
-  it("login redirects home, callback is 400, metadata is 404", async () => {
+  it("does not send localhost login back to the app when USE_MOCK_AUTH is set", async () => {
     const previous = process.env.USE_MOCK_AUTH;
     process.env.USE_MOCK_AUTH = "true";
     try {
       const { GET: loginGet } = await import("../apps/web/app/api/auth/saml/login/route");
       const { POST: callbackPost } = await import("../apps/web/app/api/auth/saml/callback/route");
-      const { GET: metadataGet } = await import("../apps/web/app/api/auth/saml/metadata/route");
 
       const loginRes = await loginGet(new Request("http://localhost/api/auth/saml/login"));
-      expect(loginRes.status).toBe(307);
-      expect(loginRes.headers.get("location")).toBe("http://localhost/");
+      expect(loginRes.headers.get("location")).not.toBe("http://localhost/");
+      expect([302, 307, 503]).toContain(loginRes.status);
 
       const callbackRes = await callbackPost(
         new Request("http://localhost/api/auth/saml/callback", { method: "POST" })
       );
       expect(callbackRes.status).toBe(400);
-
-      const metadataRes = await metadataGet(
-        new Request("http://localhost/api/auth/saml/metadata")
-      );
-      expect(metadataRes.status).toBe(404);
     } finally {
       if (previous === undefined) {
         delete process.env.USE_MOCK_AUTH;
@@ -342,48 +345,53 @@ describe("SAML routes with mock auth", () => {
     }
   });
 
-  it("logout clears the session cookie and redirects to SAML login", async () => {
-    const { GET: logoutGet, POST: logoutPost } = await import(
-      "../apps/web/app/api/auth/logout/route"
-    );
-    const getRes = await logoutGet(new Request("http://localhost/api/auth/logout"));
-    expect(getRes.status).toBe(302);
-    expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
-    expect(getRes.headers.get("cache-control")).toContain("no-store");
-    expect(getRes.headers.get("pragma")).toBe("no-cache");
-    expect(getRes.headers.get("expires")).toBe("0");
-    const setCookie = getRes.headers.get("set-cookie") ?? "";
-    expect(setCookie).toMatch(/hitowa_session=/);
-    expect(setCookie).toMatch(/Path=\//i);
-    expect(setCookie).toMatch(/HttpOnly/i);
-    expect(setCookie).toMatch(/Secure/i);
-    expect(setCookie).toMatch(/SameSite=Lax/i);
-    expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+  it("logout clears the session cookie and redirects to SAML_ENTRY_POINT", async () => {
+    const previous = process.env.SAML_ENTRY_POINT;
+    process.env.SAML_ENTRY_POINT = "https://idp.example.test/sso";
+    try {
+      const { GET: logoutGet, POST: logoutPost } = await import(
+        "../apps/web/app/api/auth/logout/route"
+      );
+      const getRes = await logoutGet();
+      expect(getRes.status).toBe(302);
+      expect(getRes.headers.get("location")).toBe("https://idp.example.test/sso");
+      expect(getRes.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate");
+      expect(getRes.headers.get("pragma")).toBe("no-cache");
+      expect(getRes.headers.get("expires")).toBe("0");
+      const setCookie = getRes.headers.get("set-cookie") ?? "";
+      expect(setCookie).toMatch(/hitowa_session=/);
+      expect(setCookie).toMatch(/Path=\//i);
+      expect(setCookie).toMatch(/HttpOnly/i);
+      expect(setCookie).toMatch(/Secure/i);
+      expect(setCookie).toMatch(/SameSite=Lax/i);
+      expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
 
-    const postRes = await logoutPost(
-      new Request("http://localhost/api/auth/logout", { method: "POST" })
-    );
-    expect(postRes.status).toBe(200);
-    expect(await postRes.json()).toEqual({
-      success: true,
-      loginPath: "/api/auth/saml/login",
-      loginUrl: "http://localhost/api/auth/saml/login",
-    });
+      const postRes = await logoutPost();
+      expect(postRes.status).toBe(302);
+      expect(postRes.headers.get("location")).toBe("https://idp.example.test/sso");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SAML_ENTRY_POINT;
+      } else {
+        process.env.SAML_ENTRY_POINT = previous;
+      }
+    }
   });
 
-  it("logout redirects using the forwarded Amplify host instead of localhost", async () => {
-    const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
-    const getRes = await logoutGet(
-      new Request("http://localhost:3000/api/auth/logout", {
-        headers: {
-          host: "main.d17na73qopyazf.amplifyapp.com",
-          "x-forwarded-proto": "https",
-        },
-      })
-    );
-    expect(getRes.headers.get("location")).toBe(
-      "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
-    );
+  it("logout ignores the request host and uses the staging IdP by default", async () => {
+    const previous = process.env.SAML_ENTRY_POINT;
+    delete process.env.SAML_ENTRY_POINT;
+    try {
+      const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
+      const getRes = await logoutGet();
+      expect(getRes.headers.get("location")).toBe("https://stg-auth.hitowa.com/saml2/sso");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SAML_ENTRY_POINT;
+      } else {
+        process.env.SAML_ENTRY_POINT = previous;
+      }
+    }
   });
 
   it("complete GET sets the session cookie and returns HTML that navigates to mypage", async () => {
@@ -391,7 +399,7 @@ describe("SAML routes with mock auth", () => {
     process.env.USE_MOCK_AUTH = "false";
     try {
       const { GET: completeGet } = await import("../apps/web/app/api/auth/saml/complete/route");
-      const token = createSessionToken(DEMO_USER_PROFILE);
+      const token = createSessionToken(sampleUser);
       const res = await completeGet(
         new Request("http://localhost/api/auth/saml/complete?t=" + encodeURIComponent(token))
       );

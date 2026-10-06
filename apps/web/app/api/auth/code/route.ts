@@ -7,7 +7,13 @@ const codeStore = new Map<string, { employeeId: string; expiresAt: number }>();
  * GET: 6桁の連携用ワンタイムコードを発行
  */
 export async function GET(request: NextRequest) {
-  const employeeId = request.headers.get('x-user-id') || '00400611';
+  const employeeId = request.headers.get("x-user-id")?.trim() ?? "";
+  if (employeeId === "") {
+    return NextResponse.json(
+      { success: false, message: "x-user-id が必要です。" },
+      { status: 400 }
+    );
+  }
 
   // 6桁のランダム数字コードを生成
   const code = Math.floor(100000 + Math.random() * 900000).toString();
