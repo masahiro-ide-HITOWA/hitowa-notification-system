@@ -100,6 +100,21 @@ export function readSamlEnv(env: NodeJS.ProcessEnv = process.env): SamlEnvConfig
   };
 }
 
+const ACCEPTED_CLOCK_SKEW_MS = 1000 * 60 * 5;
+
+class ClockSkewSAML extends SAML {
+  calcMaxAgeAssertionTime(
+    maxAssertionAgeMs: number,
+    notOnOrAfter: string,
+    issueInstant: string
+  ): number {
+    if (notOnOrAfter == null || notOnOrAfter === "" || Number.isNaN(Date.parse(notOnOrAfter))) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    return super.calcMaxAgeAssertionTime(maxAssertionAgeMs, notOnOrAfter, issueInstant);
+  }
+}
+
 export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
   const formattedCert = formatCertificate(config.idpCert);
   const options = {
@@ -113,10 +128,13 @@ export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
     wantAssertionsSigned: false,
     wantAuthnResponseSigned: false,
     signatureAlgorithm: "sha256" as const,
+    acceptedClockSkewMs: ACCEPTED_CLOCK_SKEW_MS,
     forceAuthn: true,
     identifierFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
   };
-  return new SAML(options as unknown as ConstructorParameters<typeof SAML>[0]) as unknown as SamlClientLike;
+  return new ClockSkewSAML(
+    options as unknown as ConstructorParameters<typeof SAML>[0]
+  ) as unknown as SamlClientLike;
 }
 
 export function getSamlClient(env: NodeJS.ProcessEnv = process.env): SamlClientLike {

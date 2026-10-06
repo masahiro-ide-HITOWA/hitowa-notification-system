@@ -94,7 +94,13 @@ describe("formatCertificate", () => {
         wantAssertionsSigned: boolean;
         wantAuthnResponseSigned: boolean;
         signatureAlgorithm: string;
+        acceptedClockSkewMs: number;
       };
+      calcMaxAgeAssertionTime: (
+        maxAssertionAgeMs: number,
+        notOnOrAfter: string,
+        issueInstant: string
+      ) => number;
     };
     const pem = `-----BEGIN CERTIFICATE-----\n${"A".repeat(64)}\n${"A".repeat(6)}\n-----END CERTIFICATE-----`;
     expect(client.options.cert).toBe(pem);
@@ -102,6 +108,10 @@ describe("formatCertificate", () => {
     expect(client.options.wantAssertionsSigned).toBe(false);
     expect(client.options.wantAuthnResponseSigned).toBe(false);
     expect(client.options.signatureAlgorithm).toBe("sha256");
+    expect(client.options.acceptedClockSkewMs).toBe(5 * 60 * 1000);
+    expect(client.calcMaxAgeAssertionTime(0, undefined as unknown as string, new Date().toISOString())).toBe(
+      Number.MAX_SAFE_INTEGER
+    );
   });
 
   it("wraps a one-line cert body", () => {
