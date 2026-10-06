@@ -10,7 +10,7 @@ export default async function MailPage() {
   if (!user) {
     redirect(SAML_LOGIN_PATH);
   }
-  const enabled = canUseWebMail(user.email);
+  const enabled = canUseWebMail(user.email, user.portalUserId);
 
   return (
     <div className="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-800">

@@ -39,7 +39,7 @@ export async function handleMailConfigGet(request: Request): Promise<NextRespons
       { status: 400 }
     );
   }
-  if (!canUseWebMail(actor.email)) {
+  if (!canUseWebMail(actor.email, actor.portalUserId)) {
     return forbiddenResponse();
   }
 
@@ -70,7 +70,7 @@ export async function handleMailConfigSave(request: Request): Promise<NextRespon
       { status: 400 }
     );
   }
-  if (!canUseWebMail(actor.email)) {
+  if (!canUseWebMail(actor.email, actor.portalUserId)) {
     return forbiddenResponse();
   }
 

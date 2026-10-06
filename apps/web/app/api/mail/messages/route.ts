@@ -5,7 +5,7 @@ import { mailActorFromRequest, mailForbiddenIfHq, mailImapErrorResponse } from "
 
 export async function GET(request: Request) {
   const actor = mailActorFromRequest(request);
-  const forbidden = mailForbiddenIfHq(actor.email);
+  const forbidden = mailForbiddenIfHq(actor.email, actor.portalUserId);
   if (forbidden) {
     return forbidden;
   }

@@ -119,7 +119,7 @@ export function MypageClient({ userProfile }: { userProfile: PortalUserProfile }
   return (
     <>
       <MypageProfileCard userProfile={userProfile} isLinked={isLinked} />
-      <MypageMailSettingsCard email={userProfile.email} />
+      <MypageMailSettingsCard email={userProfile.email} portalUserId={userProfile.portalUserId} />
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center text-xs font-bold">
           <span>💬 LINE Push通知連携 (BYOD設定)</span>

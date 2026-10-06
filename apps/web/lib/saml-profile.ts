@@ -20,16 +20,52 @@ function firstString(profile: Record<string, unknown>, keys: string[]): string |
   return null;
 }
 
+const EMAIL_ATTRIBUTE_KEYS = [
+  "email",
+  "mail",
+  "Email",
+  "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+];
+
+const EMPLOYEE_ID_ATTRIBUTE_KEYS = [
+  "employeeNumber",
+  "EmployeeNumber",
+  "employee_id",
+  "employeeId",
+  "userId",
+  "user_id",
+  "uid",
+];
+
+function isEmployeeNumber(value: string): boolean {
+  return /^\d{8}$/.test(value.trim());
+}
+
+function attributeCandidates(profile: Record<string, unknown>, keys: string[]): string[] {
+  const values: string[] = [];
+  for (const key of keys) {
+    const value = firstString(profile, [key]);
+    if (value !== null) {
+      values.push(value);
+    }
+  }
+  return values;
+}
+
 export function profileFromSamlAttributes(profile: Record<string, unknown>): PortalUserProfile {
+  const nameId = firstString(profile, ["nameID", "NameID"]);
   const email =
-    firstString(profile, [
-      "email",
-      "mail",
-      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
-      "nameID",
-    ]) ?? "";
+    firstString(profile, EMAIL_ATTRIBUTE_KEYS) ??
+    (nameId !== null && nameId.includes("@") ? nameId : "");
+  const employeeCandidates = attributeCandidates(profile, [
+    ...EMPLOYEE_ID_ATTRIBUTE_KEYS,
+    "nameID",
+    "NameID",
+  ]);
   const portalUserId =
-    firstString(profile, ["employeeNumber", "employee_id", "EmployeeNumber", "nameID"]) ?? "";
+    employeeCandidates.find((value) => isEmployeeNumber(value)) ??
+    employeeCandidates.find((value) => !value.includes("@")) ??
+    "";
   const divisionName =
     firstString(profile, ["department", "divisionName", "Department"]) ??
     FALLBACK_SAML_ATTRIBUTES.divisionName;

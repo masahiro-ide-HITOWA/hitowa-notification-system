@@ -27,8 +27,8 @@ export function mailActorFromRequest(request: Request): { portalUserId: string; 
   );
 }
 
-export function mailForbiddenIfHq(email: string): NextResponse | null {
-  if (canUseWebMail(email)) {
+export function mailForbiddenIfHq(email: string, portalUserId?: string): NextResponse | null {
+  if (canUseWebMail(email, portalUserId)) {
     return null;
   }
   return NextResponse.json(

@@ -48,7 +48,7 @@ function WebMailNavButton({
   email: string;
 }) {
   const status = useMailConfigStatus(portalUserId, email);
-  const mode = resolveWebMailNavMode(email, status.username, status.hasPassword);
+  const mode = resolveWebMailNavMode(email, status.username, status.hasPassword, portalUserId);
 
   if (mode === "enabled") {
     return (
@@ -103,15 +103,15 @@ export default function Header() {
               ログイン
             </Link>
           ) : (
-            <button
-              type="button"
+            <a
+              href="/api/auth/logout"
               onClick={() => {
                 window.location.href = "/api/auth/logout";
               }}
               className="px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
             >
               ログアウト (テスト用)
-            </button>
+            </a>
           )}
           <Link
             href="/mypage"

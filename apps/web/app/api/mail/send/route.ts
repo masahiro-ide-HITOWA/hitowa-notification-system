@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       null
     ) ?? sessionActor;
 
-  const forbidden = mailForbiddenIfHq(actor.email);
+  const forbidden = mailForbiddenIfHq(actor.email, actor.portalUserId);
   if (forbidden) {
     return forbidden;
   }

@@ -150,6 +150,32 @@ describe("profileFromSamlAttributes", () => {
     });
     expect(profileFromSamlAttributes({ email: "only@hitowa.com" }).portalUserId).toBe("");
   });
+
+  it("matches employee 00400999 from employeeNumber, userId, or nameID", () => {
+    expect(
+      profileFromSamlAttributes({
+        email: "field@hitowa.com",
+        employeeNumber: "00400999",
+      }).portalUserId
+    ).toBe("00400999");
+    expect(
+      profileFromSamlAttributes({
+        userId: "00400999",
+        nameID: "someone@hitowa.com",
+      })
+    ).toMatchObject({
+      portalUserId: "00400999",
+      email: "someone@hitowa.com",
+    });
+    expect(
+      profileFromSamlAttributes({
+        nameID: "00400999",
+      })
+    ).toMatchObject({
+      portalUserId: "00400999",
+      email: "",
+    });
+  });
 });
 
 describe("samlBodyFromRequestData", () => {
