@@ -6,6 +6,7 @@ import {
   PASSWORD_MASK,
   isImapSecure,
   isSmtpSecure,
+  mailAccountNameOrSessionEmail,
   parseMailConfigInput,
   parseMailSettingsActor,
   planMailPasswordUpdate,
@@ -231,6 +232,36 @@ describe("verifyMailConnection", () => {
         },
         verifySmtp: async () => undefined,
       })
-    ).rejects.toBeInstanceOf(MailConfigVerifyError);
+    ).rejects.toThrow(/IMAP timeout/);
+  });
+
+  it("includes the IMAP server response when the command fails", async () => {
+    const failure = new Error("Command failed") as Error & {
+      responseText: string;
+      executedCommand: string;
+      stderr: string;
+    };
+    failure.responseText = "NO [AUTHENTICATIONFAILED] Invalid credentials for plain-secret";
+    failure.executedCommand = "A1 LOGIN field@kagoya.jp plain-secret";
+    failure.stderr = "imap stderr plain-secret";
+    const rejected = await verifyMailConnection(sampleInput, {
+      verifyImap: async () => {
+        throw failure;
+      },
+      verifySmtp: async () => undefined,
+    }).catch((error: unknown) => error);
+    expect(rejected).toBeInstanceOf(MailConfigVerifyError);
+    const message = rejected instanceof Error ? rejected.message : "";
+    expect(message).toContain("message=Command failed");
+    expect(message).toContain("responseText=NO [AUTHENTICATIONFAILED]");
+    expect(message).toContain("stderr=imap stderr ********");
+    expect(message).not.toContain("plain-secret");
+  });
+
+  it("uses the SAML session email when no mail account is saved", () => {
+    expect(mailAccountNameOrSessionEmail("", "staff@kagoya.jp")).toBe("staff@kagoya.jp");
+    expect(mailAccountNameOrSessionEmail("saved@kagoya.jp", "staff@kagoya.jp")).toBe(
+      "saved@kagoya.jp"
+    );
   });
 });

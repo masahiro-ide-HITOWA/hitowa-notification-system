@@ -66,6 +66,11 @@ export function parseMailSettingsActor(
   return { portalUserId, email };
 }
 
+export function mailAccountNameOrSessionEmail(savedUsername: string, sessionEmail: string): string {
+  const saved = savedUsername.trim();
+  return saved !== "" ? saved : sessionEmail.trim();
+}
+
 export function withFixedMailHosts(
   username: string,
   password: string

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ACCOUNT_NAME_PLACEHOLDER } from "@/lib/mail-config-defaults";
-import { PASSWORD_KEEP_PLACEHOLDER, type MailConfigPublic } from "@/lib/mail-config";
+import {
+  mailAccountNameOrSessionEmail,
+  PASSWORD_KEEP_PLACEHOLDER,
+  type MailConfigPublic,
+} from "@/lib/mail-config";
 
 interface MailConfigFormProps {
   portalUserId: string;
@@ -10,7 +13,7 @@ interface MailConfigFormProps {
 }
 
 export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(email);
   const [password, setPassword] = useState("");
   const [hasPassword, setHasPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,7 +39,7 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
           throw new Error(data.message || "設定の取得に失敗しました");
         }
         if (!cancelled) {
-          setUsername(data.config.username);
+          setUsername(mailAccountNameOrSessionEmail(data.config.username, email));
           setPassword("");
           setHasPassword(data.config.hasPassword);
         }
@@ -110,7 +113,7 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
-          placeholder={ACCOUNT_NAME_PLACEHOLDER}
+          placeholder={email}
           required
         />
       </label>
