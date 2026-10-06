@@ -1,12 +1,11 @@
 import Header from "@/components/Header";
 import { MypageClient } from "@/components/MypageClient";
-import { SESSION_COOKIE_NAME, resolvePortalUser } from "@/lib/auth-session";
 import { SAML_LOGIN_PATH } from "@/lib/auth-mode";
-import { cookies } from "next/headers";
+import { portalUserFromRequest } from "@/lib/portal-user-request";
 import { redirect } from "next/navigation";
 
 export default async function SettingsPage() {
-  const user = resolvePortalUser((await cookies()).get(SESSION_COOKIE_NAME)?.value);
+  const user = await portalUserFromRequest();
   if (!user) {
     redirect(SAML_LOGIN_PATH);
   }

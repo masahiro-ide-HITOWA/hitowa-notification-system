@@ -2,22 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import { isLinkedStatusPayload, useLineLinkStatus } from "@/lib/use-line-link-status";
 import { usePortalUser } from "@/lib/use-portal-user";
 
 export function LineIntegrationSection() {
   const { user } = usePortalUser();
-  const profile = user ?? DEMO_USER_PROFILE;
+  const profile = user;
   const [loading, setLoading] = useState(false);
   const [codeData, setCodeData] = useState<{
     oneTimeCode: string;
     expiresAt: string;
     lineAddFriendUrl: string;
   } | null>(null);
-  const { isLinked, setIsLinked } = useLineLinkStatus(profile.email, profile.portalUserId);
+  const { isLinked, setIsLinked } = useLineLinkStatus(profile?.email ?? "", profile?.portalUserId ?? "");
 
   const handleIssueCode = async () => {
+    if (!profile) {
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/line/issue-code", {
@@ -60,7 +62,7 @@ export function LineIntegrationSection() {
   };
 
   useEffect(() => {
-    if (!codeData || isLinked) return;
+    if (!profile || !codeData || isLinked) return;
 
     const intervalId = setInterval(async () => {
       try {
@@ -87,7 +89,11 @@ export function LineIntegrationSection() {
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [codeData, isLinked, setIsLinked]);
+  }, [codeData, isLinked, profile, setIsLinked]);
+
+  if (!profile) {
+    return null;
+  }
 
   return (
     <div style={{ padding: "24px", border: "1px solid #e0e0e0", borderRadius: "12px", background: "#fff", marginTop: "24px" }}>

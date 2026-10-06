@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { isMockAuthEnabled, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import { hostnameFromRequest, isMockAuthEnabled, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 import { verifySessionToken } from "@/lib/auth-session";
 
 const MYPAGE_NAVIGATION_HTML = `<!DOCTYPE html>
@@ -47,7 +47,7 @@ async function sessionNavigationResponse(sessionToken: string): Promise<NextResp
 }
 
 export async function GET(request: Request) {
-  if (isMockAuthEnabled()) {
+  if (isMockAuthEnabled(process.env, hostnameFromRequest(request))) {
     return NextResponse.json(
       { success: false, message: "モック認証中のため SAML セッション確定は無効です" },
       { status: 400 }

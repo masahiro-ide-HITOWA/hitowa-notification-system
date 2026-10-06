@@ -1,9 +1,8 @@
 import Header from "@/components/Header";
 import { NotificationList } from "@/components/NotificationList";
-import { SESSION_COOKIE_NAME, resolvePortalUser } from "@/lib/auth-session";
-import { isMockAuthEnabled, SAML_LOGIN_PATH } from "@/lib/auth-mode";
-import { logAuthGuardCookies } from "@/lib/auth-guard";
-import { cookies } from "next/headers";
+import { hostnameFromHeaders, isMockAuthEnabled, SAML_LOGIN_PATH, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import { logAuthGuardCookies, resolveGuardedPortalUser } from "@/lib/auth-guard";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +11,10 @@ export const fetchCache = "force-no-store";
 
 export default async function MyPage() {
   const jar = await cookies();
+  const hostname = hostnameFromHeaders(await headers());
   logAuthGuardCookies(jar.getAll());
-  console.log("[AUTH GUARD CHECK] mock=", isMockAuthEnabled());
-  const user = resolvePortalUser(jar.get(SESSION_COOKIE_NAME)?.value);
+  console.log("[AUTH GUARD CHECK] mock=", isMockAuthEnabled(process.env, hostname));
+  const user = resolveGuardedPortalUser(jar.get(SESSION_COOKIE_NAME)?.value, hostname);
   if (!user) {
     redirect(SAML_LOGIN_PATH);
   }

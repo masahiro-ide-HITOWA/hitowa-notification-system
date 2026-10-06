@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSamlClient, isMockAuthEnabled, SAML_CALLBACK_PATH } from "@/lib/saml";
+import { hostnameFromRequest } from "@/lib/auth-mode";
 import { absoluteUrlFromRequest, resolveRequestOrigin } from "@/lib/request-origin";
 
 export async function GET(request: Request) {
-  if (isMockAuthEnabled()) {
+  if (isMockAuthEnabled(process.env, hostnameFromRequest(request))) {
     return NextResponse.redirect(absoluteUrlFromRequest("/", request));
   }
   try {

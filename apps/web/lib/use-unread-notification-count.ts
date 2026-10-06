@@ -9,6 +9,11 @@ export function useUnreadNotificationCount(portalUserId: string): number {
   useEffect(() => {
     let cancelled = false;
 
+    if (portalUserId.trim() === "") {
+      setUnreadCount(0);
+      return;
+    }
+
     async function loadUnread() {
       try {
         const res = await fetch("/api/notifications", {

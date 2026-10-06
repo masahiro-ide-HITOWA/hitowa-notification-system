@@ -87,9 +87,10 @@ export function verifySessionToken(
 
 export function resolvePortalUser(
   sessionToken: string | undefined | null,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  hostname?: string
 ): PortalUserProfile | null {
-  if (isMockAuthEnabled(env)) {
+  if (isMockAuthEnabled(env, hostname)) {
     return DEMO_USER_PROFILE;
   }
   const token = sessionToken?.trim();

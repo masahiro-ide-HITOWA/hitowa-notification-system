@@ -5,10 +5,12 @@ import {
   hasSessionCookie,
   isLocalDevHost,
   isPublicAuthPath,
+  resolveGuardedPortalUser,
   shouldRedirectUnauthenticated,
 } from "../apps/web/lib/auth-guard";
 import { isMockAuthEnabled } from "../apps/web/lib/auth-mode";
 import { resolvePortalUser } from "../apps/web/lib/auth-session";
+import { DEMO_USER_PROFILE } from "../apps/web/lib/saml-user-attributes";
 
 describe("auth guard", () => {
   it("allows SAML and webhook paths without a session", () => {
@@ -57,9 +59,19 @@ describe("auth guard", () => {
 describe("resolvePortalUser without mock", () => {
   it("never returns a demo user when USE_MOCK_AUTH is false", () => {
     const env = { USE_MOCK_AUTH: "false" };
-    expect(resolvePortalUser(undefined, env)).toBeNull();
-    expect(resolvePortalUser("", env)).toBeNull();
-    expect(resolvePortalUser("not-a-valid-token", env)).toBeNull();
-    expect(isMockAuthEnabled({ NEXT_PUBLIC_USE_MOCK_AUTH: "false" })).toBe(false);
+    expect(resolvePortalUser(undefined, env, "localhost")).toBeNull();
+    expect(resolvePortalUser("", env, "localhost")).toBeNull();
+    expect(resolvePortalUser("not-a-valid-token", env, "localhost")).toBeNull();
+    expect(isMockAuthEnabled({ NEXT_PUBLIC_USE_MOCK_AUTH: "false" }, "localhost")).toBe(false);
+  });
+
+  it("returns null off localhost even when mock env is unset or true", () => {
+    const amplify = "main.d17na73qopyazf.amplifyapp.com";
+    expect(resolveGuardedPortalUser(undefined, amplify, { USE_MOCK_AUTH: "true" })).toBeNull();
+    expect(resolveGuardedPortalUser("", amplify, {})).toBeNull();
+    expect(resolveGuardedPortalUser("not-a-valid-token", amplify, { USE_MOCK_AUTH: "true" })).toBeNull();
+    expect(resolveGuardedPortalUser(undefined, "localhost", { USE_MOCK_AUTH: "true" })).toEqual(
+      DEMO_USER_PROFILE
+    );
   });
 });

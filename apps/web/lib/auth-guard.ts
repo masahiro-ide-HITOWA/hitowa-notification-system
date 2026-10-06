@@ -1,4 +1,13 @@
-import { isMockAuthEnabled, SAML_LOGIN_PATH, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import {
+  isLocalDevHost,
+  isMockAuthEnabled,
+  SAML_LOGIN_PATH,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth-mode";
+import { resolvePortalUser } from "@/lib/auth-session";
+import type { PortalUserProfile } from "@/lib/saml-user-attributes";
+
+export { isLocalDevHost };
 
 const PUBLIC_PREFIXES = [
   "/api/auth/saml",
@@ -18,11 +27,6 @@ export function isPublicAuthPath(pathname: string): boolean {
   );
 }
 
-export function isLocalDevHost(hostname: string | undefined): boolean {
-  const host = hostname?.split(":")[0] ?? "";
-  return host === "localhost" || host === "127.0.0.1";
-}
-
 export function shouldRedirectUnauthenticated(
   pathname: string,
   hasSession: boolean,
@@ -32,10 +36,25 @@ export function shouldRedirectUnauthenticated(
   if (isPublicAuthPath(pathname) || hasSession) {
     return false;
   }
-  if (isMockAuthEnabled(env) && isLocalDevHost(hostname)) {
+  if (isMockAuthEnabled(env, hostname)) {
     return false;
   }
   return true;
+}
+
+export function resolveGuardedPortalUser(
+  sessionToken: string | undefined | null,
+  hostname: string | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): PortalUserProfile | null {
+  if (!isLocalDevHost(hostname)) {
+    const token = sessionToken?.trim() ?? "";
+    if (token === "") {
+      return null;
+    }
+    return resolvePortalUser(token, { ...env, USE_MOCK_AUTH: "false" }, hostname);
+  }
+  return resolvePortalUser(sessionToken, env, hostname);
 }
 
 export const PAGE_NO_CACHE_HEADERS = {

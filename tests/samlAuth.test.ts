@@ -29,10 +29,15 @@ const samlEnv = {
 };
 
 describe("isMockAuthEnabled", () => {
-  it("keeps mock auth unless USE_MOCK_AUTH is the string false", () => {
-    expect(isMockAuthEnabled({})).toBe(true);
-    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" })).toBe(true);
-    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "false" })).toBe(false);
+  it("allows mock auth only on localhost when USE_MOCK_AUTH is not false", () => {
+    expect(isMockAuthEnabled({}, "localhost")).toBe(true);
+    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" }, "127.0.0.1:3000")).toBe(true);
+    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "false" }, "localhost")).toBe(false);
+    expect(isMockAuthEnabled({}, "main.d17na73qopyazf.amplifyapp.com")).toBe(false);
+    expect(isMockAuthEnabled({ USE_MOCK_AUTH: "true" }, "main.d17na73qopyazf.amplifyapp.com")).toBe(
+      false
+    );
+    expect(isMockAuthEnabled({})).toBe(false);
   });
 });
 
@@ -112,8 +117,13 @@ describe("session token", () => {
   });
 
   it("uses demo profile when mock auth is enabled", () => {
-    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" })).toEqual(DEMO_USER_PROFILE);
-    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "false" })).toBeNull();
+    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" }, "localhost")).toEqual(
+      DEMO_USER_PROFILE
+    );
+    expect(
+      resolvePortalUser(undefined, { USE_MOCK_AUTH: "true" }, "main.d17na73qopyazf.amplifyapp.com")
+    ).toBeNull();
+    expect(resolvePortalUser(undefined, { USE_MOCK_AUTH: "false" }, "localhost")).toBeNull();
   });
 
   it("reads the session cookie from Cookie header", () => {
@@ -161,7 +171,9 @@ describe("SAML routes with mock auth", () => {
       );
       expect(callbackRes.status).toBe(400);
 
-      const metadataRes = await metadataGet();
+      const metadataRes = await metadataGet(
+        new Request("http://localhost/api/auth/saml/metadata")
+      );
       expect(metadataRes.status).toBe(404);
     } finally {
       if (previous === undefined) {

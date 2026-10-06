@@ -8,7 +8,6 @@ import {
   resolveWebMailNavMode,
 } from "@/lib/mail-permission";
 import { formatUnreadBadge } from "@/lib/notifications";
-import { DEMO_USER_PROFILE } from "@/lib/saml-user-attributes";
 import { useMailConfigStatus } from "@/lib/use-mail-config-status";
 import { usePortalUser } from "@/lib/use-portal-user";
 import { useUnreadNotificationCount } from "@/lib/use-unread-notification-count";
@@ -85,8 +84,7 @@ function WebMailNavButton({
 export default function Header() {
   const pathname = usePathname();
   const { user, authMode } = usePortalUser();
-  const actor = user ?? DEMO_USER_PROFILE;
-  const unreadCount = useUnreadNotificationCount(actor.portalUserId);
+  const unreadCount = useUnreadNotificationCount(user?.portalUserId ?? "");
   const unreadBadge = formatUnreadBadge(unreadCount);
 
   return (
@@ -126,11 +124,13 @@ export default function Header() {
               </span>
             ) : null}
           </Link>
-          <WebMailNavButton
-            pathname={pathname}
-            portalUserId={actor.portalUserId}
-            email={actor.email}
-          />
+          {user ? (
+            <WebMailNavButton
+              pathname={pathname}
+              portalUserId={user.portalUserId}
+              email={user.email}
+            />
+          ) : null}
           <Link href="/settings" className={navClass(pathname === "/settings" || pathname.startsWith("/settings/"))}>
             設定
           </Link>
