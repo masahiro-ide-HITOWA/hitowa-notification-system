@@ -12,7 +12,13 @@ async function readJsonBody(request: Request): Promise<unknown | null> {
   }
 }
 
+export async function GET() {
+  console.log("[Email Webhook Status] Health check accessed at:", new Date().toISOString());
+  return NextResponse.json({ status: "ok", message: "Email webhook endpoint is active" });
+}
+
 export async function POST(request: Request) {
+  console.log("[Email Webhook Event] Received payload at:", new Date().toISOString());
   try {
     const body = await readJsonBody(request);
     if (body === null) {

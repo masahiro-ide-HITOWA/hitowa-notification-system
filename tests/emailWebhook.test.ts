@@ -150,3 +150,49 @@ describe("email notification persistence helpers", () => {
     });
   });
 });
+
+describe("email webhook route", () => {
+  it("logs a health check and returns 200", async () => {
+    const logs: unknown[][] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args);
+    };
+    try {
+      const { GET } = await import("../apps/web/app/api/webhooks/email/route");
+      const response = await GET();
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        status: "ok",
+        message: "Email webhook endpoint is active",
+      });
+      expect(logs.some((args) => args[0] === "[Email Webhook Status] Health check accessed at:")).toBe(
+        true
+      );
+    } finally {
+      console.log = original;
+    }
+  });
+
+  it("logs when a POST payload arrives", async () => {
+    const logs: unknown[][] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => {
+      logs.push(args);
+    };
+    try {
+      const { POST } = await import("../apps/web/app/api/webhooks/email/route");
+      const response = await POST(
+        new Request("http://localhost/api/webhooks/email", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{",
+        })
+      );
+      expect(response.status).toBe(400);
+      expect(logs.some((args) => args[0] === "[Email Webhook Event] Received payload at:")).toBe(true);
+    } finally {
+      console.log = original;
+    }
+  });
+});
