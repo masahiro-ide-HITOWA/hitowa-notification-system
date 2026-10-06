@@ -13,9 +13,9 @@ function readPort(value: string | undefined, fallback: number): number {
 
 /** KAGOYA IMAP/SMTP. Override via MAIL_IMAP_HOST / MAIL_IMAP_PORT / MAIL_SMTP_HOST / MAIL_SMTP_PORT. */
 export const MAIL_SERVER_DEFAULTS = {
-  imapHost: readHost(process.env.MAIL_IMAP_HOST, "mss191.kagoya.net"),
-  imapPort: readPort(process.env.MAIL_IMAP_PORT, 143),
-  smtpHost: readHost(process.env.MAIL_SMTP_HOST, "mss191.kagoya.net"),
+  imapHost: readHost(process.env.MAIL_IMAP_HOST, "imap.kagoya.net"),
+  imapPort: readPort(process.env.MAIL_IMAP_PORT, 993),
+  smtpHost: readHost(process.env.MAIL_SMTP_HOST, "smtp.kagoya.net"),
   smtpPort: readPort(process.env.MAIL_SMTP_PORT, 587),
 };
 

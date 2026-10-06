@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  DEFAULT_MAIL_HOSTS,
   mailAccountNameOrSessionEmail,
   PASSWORD_KEEP_PLACEHOLDER,
   type MailConfigPublic,
@@ -13,6 +14,10 @@ interface MailConfigFormProps {
 }
 
 export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
+  const [imapHost, setImapHost] = useState(DEFAULT_MAIL_HOSTS.imapHost);
+  const [imapPort, setImapPort] = useState(String(DEFAULT_MAIL_HOSTS.imapPort));
+  const [smtpHost, setSmtpHost] = useState(DEFAULT_MAIL_HOSTS.smtpHost);
+  const [smtpPort, setSmtpPort] = useState(String(DEFAULT_MAIL_HOSTS.smtpPort));
   const [username, setUsername] = useState(email);
   const [password, setPassword] = useState("");
   const [hasPassword, setHasPassword] = useState(false);
@@ -39,6 +44,10 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
           throw new Error(data.message || "設定の取得に失敗しました");
         }
         if (!cancelled) {
+          setImapHost(data.config.imapHost);
+          setImapPort(String(data.config.imapPort));
+          setSmtpHost(data.config.smtpHost);
+          setSmtpPort(String(data.config.smtpPort));
           setUsername(mailAccountNameOrSessionEmail(data.config.username, email));
           setPassword("");
           setHasPassword(data.config.hasPassword);
@@ -75,6 +84,10 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
         body: JSON.stringify({
           portalUserId,
           email,
+          imapHost: imapHost.trim(),
+          imapPort: Number(imapPort),
+          smtpHost: smtpHost.trim(),
+          smtpPort: Number(smtpPort),
           username: username.trim(),
           password,
         }),
@@ -88,6 +101,10 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
         throw new Error(data.message || "保存に失敗しました");
       }
       if (data.config) {
+        setImapHost(data.config.imapHost);
+        setImapPort(String(data.config.imapPort));
+        setSmtpHost(data.config.smtpHost);
+        setSmtpPort(String(data.config.smtpPort));
         setUsername(data.config.username);
         setPassword("");
         setHasPassword(data.config.hasPassword);
@@ -106,6 +123,24 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
       {loading ? <p className="text-xs text-slate-500">設定を読み込んでいます...</p> : null}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_7rem] gap-3">
+        <label className="block text-xs font-semibold text-slate-600">
+          IMAP サーバー
+          <input className={fieldClass} value={imapHost} onChange={(e) => setImapHost(e.target.value)} required />
+        </label>
+        <label className="block text-xs font-semibold text-slate-600">
+          IMAP ポート
+          <input className={fieldClass} value={imapPort} onChange={(e) => setImapPort(e.target.value)} inputMode="numeric" required />
+        </label>
+        <label className="block text-xs font-semibold text-slate-600">
+          SMTP サーバー
+          <input className={fieldClass} value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required />
+        </label>
+        <label className="block text-xs font-semibold text-slate-600">
+          SMTP ポート
+          <input className={fieldClass} value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} inputMode="numeric" required />
+        </label>
+      </div>
       <label className="block text-xs font-semibold text-slate-600">
         アカウント名
         <input

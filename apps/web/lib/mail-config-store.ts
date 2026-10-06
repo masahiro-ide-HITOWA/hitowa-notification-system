@@ -1,6 +1,5 @@
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { decryptPassword, encryptPassword } from "@/lib/mail-crypto";
-import { MAIL_SERVER_DEFAULTS } from "@/lib/mail-config-defaults";
 import {
   planMailPasswordUpdate,
   recordFromItem,
@@ -66,7 +65,10 @@ export async function getMailConfigForConnection(
   }
   return {
     portalUserId,
-    ...MAIL_SERVER_DEFAULTS,
+    imapHost: record.imapHost,
+    imapPort: record.imapPort,
+    smtpHost: record.smtpHost,
+    smtpPort: record.smtpPort,
     username: record.username,
     password: decryptPassword(record.passwordEncrypted),
   };
@@ -83,11 +85,10 @@ export async function resolveMailConfigPlaintext(
     throw new Error("password is required");
   }
   if (plan.kind === "replace") {
-    return { ...MAIL_SERVER_DEFAULTS, username: config.username, password: plan.plaintext };
+    return { ...config, password: plan.plaintext };
   }
   return {
-    ...MAIL_SERVER_DEFAULTS,
-    username: config.username,
+    ...config,
     password: decryptPassword(existing?.passwordEncrypted ?? ""),
   };
 }
@@ -112,7 +113,10 @@ export async function saveMailConfig(
   const updatedAt = deps.now ? deps.now() : new Date().toISOString();
   const item = {
     portalUserId,
-    ...MAIL_SERVER_DEFAULTS,
+    imapHost: config.imapHost,
+    imapPort: config.imapPort,
+    smtpHost: config.smtpHost,
+    smtpPort: config.smtpPort,
     username: config.username,
     passwordEncrypted,
     updatedAt,

@@ -51,19 +51,28 @@ describe("parseMailSettingsActor / parseMailConfigInput", () => {
     ).toEqual({ portalUserId: "00400611", email: "field@kagoya.jp" });
   });
 
-  it("parses account credentials and ignores client-supplied hosts/ports", () => {
+  it("uses request hosts and ports, otherwise KAGOYA defaults", () => {
     expect(
       parseMailConfigInput({
         username: sampleInput.username,
         password: sampleInput.password,
-        imapHost: "evil.example.com",
-        imapPort: 999,
-        smtpHost: "evil.example.com",
+        imapHost: "imap.example.net",
+        imapPort: 993,
+        smtpHost: "smtp.example.net",
         smtpPort: 465,
       })
-    ).toEqual(sampleInput);
-    expect(parseMailConfigInput({ username: sampleInput.username })).toEqual({
+    ).toEqual({
+      username: sampleInput.username,
+      password: sampleInput.password,
+      imapHost: "imap.example.net",
+      imapPort: 993,
+      smtpHost: "smtp.example.net",
+      smtpPort: 465,
+    });
+    expect(parseMailConfigInput({ username: sampleInput.username, host: "mail.example.net", port: "993" })).toEqual({
       ...DEFAULT_MAIL_HOSTS,
+      imapHost: "mail.example.net",
+      imapPort: 993,
       username: sampleInput.username,
       password: "",
     });
@@ -113,7 +122,7 @@ describe("saveMailConfig / getMailConfig", () => {
     );
 
     expect(deps.items.get("00400611")?.passwordEncrypted).toBe(previous);
-    expect(deps.items.get("00400611")?.smtpPort).toBe(DEFAULT_MAIL_HOSTS.smtpPort);
+    expect(deps.items.get("00400611")?.smtpPort).toBe(465);
   });
 
   it("keeps the existing encrypted password when password is omitted or empty", async () => {
@@ -129,7 +138,7 @@ describe("saveMailConfig / getMailConfig", () => {
 
     expect(deps.items.get("00400611")?.passwordEncrypted).toBe(previous);
     expect(updated.username).toBe("field2@kagoya.jp");
-    expect(updated.imapHost).toBe(DEFAULT_MAIL_HOSTS.imapHost);
+    expect(updated.imapHost).toBe("imap.example.net");
     expect(updated.hasPassword).toBe(true);
     expect(JSON.stringify(updated)).not.toContain("plain-secret");
 
@@ -164,7 +173,12 @@ describe("saveMailConfig / getMailConfig", () => {
     await saveMailConfig("00400611", sampleInput, deps);
     const connection = await getMailConfigForConnection("00400611", deps);
     expect(connection?.password).toBe("plain-secret");
-    expect(connection).toMatchObject(DEFAULT_MAIL_HOSTS);
+    expect(connection).toMatchObject({
+      imapHost: sampleInput.imapHost,
+      imapPort: sampleInput.imapPort,
+      smtpHost: sampleInput.smtpHost,
+      smtpPort: sampleInput.smtpPort,
+    });
   });
 
   it("returns KAGOYA defaults when no config exists", async () => {
@@ -177,16 +191,16 @@ describe("saveMailConfig / getMailConfig", () => {
       passwordMasked: "",
     });
     expect(DEFAULT_MAIL_HOSTS).toEqual({
-      imapHost: "mss191.kagoya.net",
-      imapPort: 143,
-      smtpHost: "mss191.kagoya.net",
+      imapHost: "imap.kagoya.net",
+      imapPort: 993,
+      smtpHost: "smtp.kagoya.net",
       smtpPort: 587,
     });
   });
 });
 
 describe("toPublicMailConfig", () => {
-  it("never exposes the encrypted secret and always uses server hosts", () => {
+  it("never exposes the encrypted secret and keeps stored hosts", () => {
     const publicConfig = toPublicMailConfig("00400611", {
       username: "field@kagoya.jp",
       passwordEncrypted: "iv.tag.cipher",

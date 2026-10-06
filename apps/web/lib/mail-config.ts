@@ -5,11 +5,11 @@ export const PASSWORD_KEEP_PLACEHOLDER = "••••••••（変更し�
 export const DEFAULT_MAIL_HOSTS = MAIL_SERVER_DEFAULTS;
 
 export function isImapSecure(port: number): boolean {
-  return port !== MAIL_SERVER_DEFAULTS.imapPort;
+  return port === 993;
 }
 
 export function isSmtpSecure(port: number): boolean {
-  return port !== MAIL_SERVER_DEFAULTS.smtpPort;
+  return port === 465;
 }
 
 export interface MailConfigInput {
@@ -71,15 +71,17 @@ export function mailAccountNameOrSessionEmail(savedUsername: string, sessionEmai
   return saved !== "" ? saved : sessionEmail.trim();
 }
 
-export function withFixedMailHosts(
-  username: string,
-  password: string
-): MailConfigInput {
-  return {
-    ...MAIL_SERVER_DEFAULTS,
-    username,
-    password,
-  };
+function readPortValue(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.trim());
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return fallback;
 }
 
 export function parseMailConfigInput(body: unknown): MailConfigInput | null {
@@ -91,7 +93,14 @@ export function parseMailConfigInput(body: unknown): MailConfigInput | null {
   if (!username) {
     return null;
   }
-  return withFixedMailHosts(username, password);
+  return {
+    imapHost: readNonEmptyString(body.imapHost) ?? readNonEmptyString(body.host) ?? MAIL_SERVER_DEFAULTS.imapHost,
+    imapPort: readPortValue(body.imapPort ?? body.port, MAIL_SERVER_DEFAULTS.imapPort),
+    smtpHost: readNonEmptyString(body.smtpHost) ?? MAIL_SERVER_DEFAULTS.smtpHost,
+    smtpPort: readPortValue(body.smtpPort, MAIL_SERVER_DEFAULTS.smtpPort),
+    username,
+    password,
+  };
 }
 
 export function isMaskedOrEmptyPassword(password: string): boolean {
@@ -119,12 +128,26 @@ export function planMailPasswordUpdate(
 
 export function toPublicMailConfig(
   portalUserId: string,
-  record: { username: string; passwordEncrypted: string; updatedAt: string } | null
+  record: {
+    username: string;
+    passwordEncrypted: string;
+    updatedAt: string;
+    imapHost?: string;
+    imapPort?: number;
+    smtpHost?: string;
+    smtpPort?: number;
+  } | null
 ): MailConfigPublic {
+  const hosts = {
+    imapHost: record?.imapHost?.trim() || MAIL_SERVER_DEFAULTS.imapHost,
+    imapPort: record?.imapPort && record.imapPort > 0 ? record.imapPort : MAIL_SERVER_DEFAULTS.imapPort,
+    smtpHost: record?.smtpHost?.trim() || MAIL_SERVER_DEFAULTS.smtpHost,
+    smtpPort: record?.smtpPort && record.smtpPort > 0 ? record.smtpPort : MAIL_SERVER_DEFAULTS.smtpPort,
+  };
   if (!record) {
     return {
       portalUserId,
-      ...MAIL_SERVER_DEFAULTS,
+      ...hosts,
       username: "",
       passwordMasked: "",
       hasPassword: false,
@@ -134,7 +157,7 @@ export function toPublicMailConfig(
   const hasPassword = record.passwordEncrypted.trim() !== "";
   return {
     portalUserId,
-    ...MAIL_SERVER_DEFAULTS,
+    ...hosts,
     username: record.username,
     passwordMasked: hasPassword ? PASSWORD_MASK : "",
     hasPassword,
@@ -146,6 +169,10 @@ export function recordFromItem(item: Record<string, unknown> | null): {
   username: string;
   passwordEncrypted: string;
   updatedAt: string;
+  imapHost: string;
+  imapPort: number;
+  smtpHost: string;
+  smtpPort: number;
 } | null {
   if (!item) {
     return null;
@@ -153,5 +180,13 @@ export function recordFromItem(item: Record<string, unknown> | null): {
   const username = readNonEmptyString(item.username) ?? "";
   const passwordEncrypted = typeof item.passwordEncrypted === "string" ? item.passwordEncrypted : "";
   const updatedAt = typeof item.updatedAt === "string" ? item.updatedAt : "";
-  return { username, passwordEncrypted, updatedAt };
+  return {
+    username,
+    passwordEncrypted,
+    updatedAt,
+    imapHost: readNonEmptyString(item.imapHost) ?? MAIL_SERVER_DEFAULTS.imapHost,
+    imapPort: readPortValue(item.imapPort, MAIL_SERVER_DEFAULTS.imapPort),
+    smtpHost: readNonEmptyString(item.smtpHost) ?? MAIL_SERVER_DEFAULTS.smtpHost,
+    smtpPort: readPortValue(item.smtpPort, MAIL_SERVER_DEFAULTS.smtpPort),
+  };
 }
