@@ -345,16 +345,16 @@ describe("SAML routes with mock auth", () => {
     }
   });
 
-  it("logout clears the session cookie and redirects to SAML_ENTRY_POINT", async () => {
-    const previous = process.env.SAML_ENTRY_POINT;
-    process.env.SAML_ENTRY_POINT = "https://idp.example.test/sso";
+  it("logout clears the session cookie and redirects to the SAML login API", async () => {
+    const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    delete process.env.NEXT_PUBLIC_APP_URL;
     try {
       const { GET: logoutGet, POST: logoutPost } = await import(
         "../apps/web/app/api/auth/logout/route"
       );
-      const getRes = await logoutGet();
+      const getRes = await logoutGet(new Request("http://localhost/api/auth/logout"));
       expect(getRes.status).toBe(302);
-      expect(getRes.headers.get("location")).toBe("https://idp.example.test/sso");
+      expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
       expect(getRes.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate");
       expect(getRes.headers.get("pragma")).toBe("no-cache");
       expect(getRes.headers.get("expires")).toBe("0");
@@ -366,30 +366,43 @@ describe("SAML routes with mock auth", () => {
       expect(setCookie).toMatch(/SameSite=Lax/i);
       expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
 
-      const postRes = await logoutPost();
+      const postRes = await logoutPost(new Request("http://localhost/api/auth/logout", { method: "POST" }));
       expect(postRes.status).toBe(302);
-      expect(postRes.headers.get("location")).toBe("https://idp.example.test/sso");
+      expect(postRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
     } finally {
-      if (previous === undefined) {
-        delete process.env.SAML_ENTRY_POINT;
+      if (previousAppUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_URL;
       } else {
-        process.env.SAML_ENTRY_POINT = previous;
+        process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
       }
     }
   });
 
-  it("logout ignores the request host and uses the staging IdP by default", async () => {
-    const previous = process.env.SAML_ENTRY_POINT;
-    delete process.env.SAML_ENTRY_POINT;
+  it("logout uses NEXT_PUBLIC_APP_URL and the forwarded host for the SAML login API", async () => {
+    const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
     try {
-      const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
-      const getRes = await logoutGet();
-      expect(getRes.headers.get("location")).toBe("https://stg-auth.hitowa.com/saml2/sso");
+      process.env.NEXT_PUBLIC_APP_URL = "https://portal.example.test";
+      const fromEnv = await logoutGet(new Request("http://localhost/api/auth/logout"));
+      expect(fromEnv.headers.get("location")).toBe("https://portal.example.test/api/auth/saml/login");
+
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      const getRes = await logoutGet(
+        new Request("http://localhost:3000/api/auth/logout", {
+          headers: {
+            host: "main.d17na73qopyazf.amplifyapp.com",
+            "x-forwarded-proto": "https",
+          },
+        })
+      );
+      expect(getRes.headers.get("location")).toBe(
+        "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
+      );
     } finally {
-      if (previous === undefined) {
-        delete process.env.SAML_ENTRY_POINT;
+      if (previousAppUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_URL;
       } else {
-        process.env.SAML_ENTRY_POINT = previous;
+        process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
       }
     }
   });

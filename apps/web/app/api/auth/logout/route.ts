@@ -1,13 +1,15 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import { SAML_LOGIN_PATH, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 import { LOGOUT_CACHE_HEADERS } from "@/lib/auth-session";
+import { samlLoginAbsoluteUrl } from "@/lib/request-origin";
 
-const DEFAULT_SAML_ENTRY_POINT = "https://stg-auth.hitowa.com/saml2/sso";
-
-export function samlEntryPointUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const configured = env.SAML_ENTRY_POINT?.trim() ?? "";
-  return configured !== "" ? configured : DEFAULT_SAML_ENTRY_POINT;
+function logoutRedirectUrl(request: Request): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "";
+  if (appUrl !== "") {
+    return new URL(SAML_LOGIN_PATH, appUrl).toString();
+  }
+  return samlLoginAbsoluteUrl(request);
 }
 
 const CLEAR_SESSION_COOKIE = {
@@ -41,12 +43,12 @@ async function clearSessionCookie(response: NextResponse): Promise<NextResponse>
   return applyLogoutHeaders(response);
 }
 
-export async function GET() {
-  const response = NextResponse.redirect(samlEntryPointUrl(), 302);
+export async function GET(request: Request) {
+  const response = NextResponse.redirect(logoutRedirectUrl(request), 302);
   return clearSessionCookie(response);
 }
 
-export async function POST() {
-  const response = NextResponse.redirect(samlEntryPointUrl(), 302);
+export async function POST(request: Request) {
+  const response = NextResponse.redirect(logoutRedirectUrl(request), 302);
   return clearSessionCookie(response);
 }
