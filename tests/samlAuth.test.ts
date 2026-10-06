@@ -177,14 +177,18 @@ describe("SAML routes with mock auth", () => {
       "../apps/web/app/api/auth/logout/route"
     );
     const getRes = await logoutGet(new Request("http://localhost/api/auth/logout"));
-    expect(getRes.status).toBe(307);
+    expect(getRes.status).toBe(302);
     expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
     expect(getRes.headers.get("cache-control")).toContain("no-store");
     expect(getRes.headers.get("pragma")).toBe("no-cache");
     expect(getRes.headers.get("expires")).toBe("0");
-    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/hitowa_session=/);
-    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/Path=\//i);
-    expect(getRes.headers.get("set-cookie") ?? "").toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+    const setCookie = getRes.headers.get("set-cookie") ?? "";
+    expect(setCookie).toMatch(/hitowa_session=/);
+    expect(setCookie).toMatch(/Path=\//i);
+    expect(setCookie).toMatch(/HttpOnly/i);
+    expect(setCookie).toMatch(/Secure/i);
+    expect(setCookie).toMatch(/SameSite=Lax/i);
+    expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
 
     const postRes = await logoutPost(
       new Request("http://localhost/api/auth/logout", { method: "POST" })
