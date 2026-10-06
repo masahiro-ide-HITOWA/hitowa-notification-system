@@ -35,14 +35,21 @@ export interface SamlClientLike {
   generateServiceProviderMetadata: (decryptionCert: string | null) => string;
 }
 
-export function normalizeSamlCertificate(raw: string): string {
-  const withNewlines = raw.replace(/\\n/g, "\n").trim();
-  if (withNewlines.includes("BEGIN CERTIFICATE")) {
-    return withNewlines;
+export function formatCertificate(cert: string): string {
+  if (!cert) {
+    return "";
   }
-  const body = withNewlines.replace(/\s+/g, "");
-  const lines = body.match(/.{1,64}/g) ?? [body];
-  return `-----BEGIN CERTIFICATE-----\n${lines.join("\n")}\n-----END CERTIFICATE-----`;
+  const cleanCert = cert
+    .replace(/\\n/g, "")
+    .replace(/-----BEGIN CERTIFICATE-----/g, "")
+    .replace(/-----END CERTIFICATE-----/g, "")
+    .replace(/\s+/g, "");
+  const formatted = cleanCert.match(/.{1,64}/g)?.join("\n") || cleanCert;
+  return `-----BEGIN CERTIFICATE-----\n${formatted}\n-----END CERTIFICATE-----`;
+}
+
+export function normalizeSamlCertificate(raw: string): string {
+  return formatCertificate(raw);
 }
 
 const REQUIRED_SAML_ENV_KEYS = [

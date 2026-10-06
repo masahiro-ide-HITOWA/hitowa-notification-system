@@ -12,6 +12,7 @@ import {
   isMockAuthEnabled,
 } from "../apps/web/lib/auth-mode";
 import {
+  formatCertificate,
   missingSamlEnvKeys,
   normalizeSamlCertificate,
   readSamlEnv,
@@ -65,7 +66,19 @@ describe("readSamlEnv", () => {
   });
 });
 
-describe("normalizeSamlCertificate", () => {
+describe("formatCertificate", () => {
+  it("rebuilds a one-line or space-separated cert as 64-character PEM lines", () => {
+    const body = "A".repeat(70);
+    const squashed = `-----BEGIN CERTIFICATE----- ${body} -----END CERTIFICATE-----`;
+    const pem = formatCertificate(squashed);
+    expect(pem).toBe(
+      `-----BEGIN CERTIFICATE-----\n${"A".repeat(64)}\n${"A".repeat(6)}\n-----END CERTIFICATE-----`
+    );
+    expect(normalizeSamlCertificate(`-----BEGIN CERTIFICATE-----\\n${body}\\n-----END CERTIFICATE-----`)).toBe(
+      pem
+    );
+  });
+
   it("wraps a one-line cert body", () => {
     const pem = normalizeSamlCertificate("abc");
     expect(pem.startsWith("-----BEGIN CERTIFICATE-----")).toBe(true);
