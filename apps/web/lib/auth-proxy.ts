@@ -19,6 +19,9 @@ export function runAuthProxy(request: NextRequest): NextResponse {
   const hasSession = Boolean(token);
   const hostname = request.nextUrl.hostname;
   if (!shouldRedirectUnauthenticated(request.nextUrl.pathname, hasSession, process.env, hostname)) {
+    if (request.nextUrl.pathname === "/api/auth/logout") {
+      return NextResponse.next();
+    }
     return applyPageNoCache(NextResponse.next());
   }
   const loginUrl = samlLoginRedirectUrl(resolveRequestOrigin(request));

@@ -9,6 +9,7 @@ import type { PortalUserProfile } from "@/lib/saml-user-attributes";
 export { isLocalDevHost };
 
 const PUBLIC_PREFIXES = [
+  "/login",
   "/api/auth/saml",
   "/api/auth/logout",
   "/api/auth/me",

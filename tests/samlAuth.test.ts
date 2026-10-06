@@ -345,46 +345,62 @@ describe("SAML routes with mock auth", () => {
     }
   });
 
-  it("logout clears the session cookie and redirects to the SAML login API", async () => {
+  it("logout clears the session cookie and redirects to the logged-out login page", async () => {
     const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const previousCookieDomain = process.env.COOKIE_DOMAIN;
     delete process.env.NEXT_PUBLIC_APP_URL;
+    delete process.env.COOKIE_DOMAIN;
     try {
       const { GET: logoutGet, POST: logoutPost } = await import(
         "../apps/web/app/api/auth/logout/route"
       );
       const getRes = await logoutGet(new Request("http://localhost/api/auth/logout"));
       expect(getRes.status).toBe(302);
-      expect(getRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
-      expect(getRes.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate");
+      expect(getRes.headers.get("location")).toBe("http://localhost/login?logged_out=true");
+      expect(getRes.headers.get("cache-control")).toBe(
+        "no-store, no-cache, must-revalidate, proxy-revalidate"
+      );
       expect(getRes.headers.get("pragma")).toBe("no-cache");
       expect(getRes.headers.get("expires")).toBe("0");
-      const setCookie = getRes.headers.get("set-cookie") ?? "";
-      expect(setCookie).toMatch(/hitowa_session=/);
-      expect(setCookie).toMatch(/Path=\//i);
-      expect(setCookie).toMatch(/HttpOnly/i);
-      expect(setCookie).toMatch(/Secure/i);
-      expect(setCookie).toMatch(/SameSite=Lax/i);
-      expect(setCookie).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+      const setCookies = getRes.headers.getSetCookie();
+      const joined = setCookies.join("\n");
+      expect(joined).toMatch(/hitowa_session=/);
+      expect(joined).toMatch(/Path=\//i);
+      expect(joined).toMatch(/HttpOnly/i);
+      expect(joined).toMatch(/Secure/i);
+      expect(joined).toMatch(/SameSite=Lax/i);
+      expect(joined).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
+      expect(setCookies.some((cookie) => /Domain=localhost/i.test(cookie))).toBe(true);
+      expect(setCookies.some((cookie) => !/Domain=/i.test(cookie))).toBe(true);
 
       const postRes = await logoutPost(new Request("http://localhost/api/auth/logout", { method: "POST" }));
       expect(postRes.status).toBe(302);
-      expect(postRes.headers.get("location")).toBe("http://localhost/api/auth/saml/login");
+      expect(postRes.headers.get("location")).toBe("http://localhost/login?logged_out=true");
     } finally {
       if (previousAppUrl === undefined) {
         delete process.env.NEXT_PUBLIC_APP_URL;
       } else {
         process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
       }
+      if (previousCookieDomain === undefined) {
+        delete process.env.COOKIE_DOMAIN;
+      } else {
+        process.env.COOKIE_DOMAIN = previousCookieDomain;
+      }
     }
   });
 
-  it("logout uses NEXT_PUBLIC_APP_URL and the forwarded host for the SAML login API", async () => {
+  it("logout uses the public host for the login page and the cookie domain", async () => {
     const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const previousCookieDomain = process.env.COOKIE_DOMAIN;
     const { GET: logoutGet } = await import("../apps/web/app/api/auth/logout/route");
     try {
+      delete process.env.COOKIE_DOMAIN;
       process.env.NEXT_PUBLIC_APP_URL = "https://portal.example.test";
       const fromEnv = await logoutGet(new Request("http://localhost/api/auth/logout"));
-      expect(fromEnv.headers.get("location")).toBe("https://portal.example.test/api/auth/saml/login");
+      expect(fromEnv.headers.get("location")).toBe(
+        "https://portal.example.test/login?logged_out=true"
+      );
 
       delete process.env.NEXT_PUBLIC_APP_URL;
       const getRes = await logoutGet(
@@ -396,13 +412,35 @@ describe("SAML routes with mock auth", () => {
         })
       );
       expect(getRes.headers.get("location")).toBe(
-        "https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/login"
+        "https://main.d17na73qopyazf.amplifyapp.com/login?logged_out=true"
       );
+      const setCookies = getRes.headers.getSetCookie();
+      expect(
+        setCookies.some((cookie) => /Domain=main\.d17na73qopyazf\.amplifyapp\.com/i.test(cookie))
+      ).toBe(true);
+      expect(setCookies.some((cookie) => !/Domain=/i.test(cookie))).toBe(true);
+
+      process.env.COOKIE_DOMAIN = "portal.example.test";
+      const fromCookieEnv = await logoutGet(
+        new Request("http://localhost/api/auth/logout", {
+          headers: { host: "ignored.example.test" },
+        })
+      );
+      expect(
+        fromCookieEnv.headers
+          .getSetCookie()
+          .some((cookie) => /Domain=portal\.example\.test/i.test(cookie))
+      ).toBe(true);
     } finally {
       if (previousAppUrl === undefined) {
         delete process.env.NEXT_PUBLIC_APP_URL;
       } else {
         process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
+      }
+      if (previousCookieDomain === undefined) {
+        delete process.env.COOKIE_DOMAIN;
+      } else {
+        process.env.COOKIE_DOMAIN = previousCookieDomain;
       }
     }
   });

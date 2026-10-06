@@ -1,54 +1,70 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import { SAML_LOGIN_PATH, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
+import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 import { LOGOUT_CACHE_HEADERS } from "@/lib/auth-session";
-import { samlLoginAbsoluteUrl } from "@/lib/request-origin";
+import { absoluteUrlFromRequest } from "@/lib/request-origin";
 
-function logoutRedirectUrl(request: Request): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "";
-  if (appUrl !== "") {
-    return new URL(SAML_LOGIN_PATH, appUrl).toString();
+const FALLBACK_COOKIE_HOST = "main.d17na73qopyazf.amplifyapp.com";
+const LOGGED_OUT_PATH = "/login?logged_out=true";
+
+function cookieDomain(request: NextRequest): string {
+  const fromEnv = process.env.COOKIE_DOMAIN?.trim() ?? "";
+  let requestHost = "";
+  try {
+    requestHost = new URL(request.url).host;
+  } catch {
+    requestHost = "";
   }
-  return samlLoginAbsoluteUrl(request);
+  const host =
+    fromEnv ||
+    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+    request.headers.get("host") ||
+    requestHost ||
+    FALLBACK_COOKIE_HOST;
+  return host.split(":")[0] || FALLBACK_COOKIE_HOST;
 }
 
-const CLEAR_SESSION_COOKIE = {
-  path: "/",
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax" as const,
-  maxAge: 0,
-  expires: new Date(0),
-};
+function clearCookieHeader(domain?: string): string {
+  const parts = [
+    `${SESSION_COOKIE_NAME}=`,
+    "Path=/",
+    "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+    "Max-Age=0",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+  ];
+  if (domain) {
+    parts.push(`Domain=${domain}`);
+  }
+  return parts.join("; ");
+}
 
-function applyLogoutHeaders(response: NextResponse): NextResponse {
-  response.headers.set("Cache-Control", LOGOUT_CACHE_HEADERS["Cache-Control"]);
+function logoutRedirectUrl(request: NextRequest): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "";
+  if (appUrl !== "") {
+    return new URL(LOGGED_OUT_PATH, appUrl).toString();
+  }
+  return absoluteUrlFromRequest(LOGGED_OUT_PATH, request);
+}
+
+async function logoutResponse(request: NextRequest): Promise<NextResponse> {
+  const domain = cookieDomain(request);
+  const response = NextResponse.redirect(logoutRedirectUrl(request), 302);
+  response.headers.append("Set-Cookie", clearCookieHeader(domain));
+  response.headers.append("Set-Cookie", clearCookieHeader());
+  response.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
   response.headers.set("Pragma", LOGOUT_CACHE_HEADERS.Pragma);
   response.headers.set("Expires", LOGOUT_CACHE_HEADERS.Expires);
   return response;
 }
 
-async function clearSessionCookie(response: NextResponse): Promise<NextResponse> {
-  try {
-    const jar = await cookies();
-    jar.set(SESSION_COOKIE_NAME, "", CLEAR_SESSION_COOKIE);
-  } catch {
-    // Route-handler unit tests have no Next.js cookie store.
-  }
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    ...CLEAR_SESSION_COOKIE,
-  });
-  return applyLogoutHeaders(response);
+export async function GET(request: NextRequest) {
+  return logoutResponse(request);
 }
 
-export async function GET(request: Request) {
-  const response = NextResponse.redirect(logoutRedirectUrl(request), 302);
-  return clearSessionCookie(response);
-}
-
-export async function POST(request: Request) {
-  const response = NextResponse.redirect(logoutRedirectUrl(request), 302);
-  return clearSessionCookie(response);
+export async function POST(request: NextRequest) {
+  return logoutResponse(request);
 }

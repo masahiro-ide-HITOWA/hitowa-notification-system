@@ -13,6 +13,7 @@ import { resolvePortalUser } from "../apps/web/lib/auth-session";
 
 describe("auth guard", () => {
   it("allows SAML and webhook paths without a session", () => {
+    expect(isPublicAuthPath("/login")).toBe(true);
     expect(isPublicAuthPath("/api/auth/saml/login")).toBe(true);
     expect(isPublicAuthPath("/api/auth/logout")).toBe(true);
     expect(isPublicAuthPath("/api/webhook/line")).toBe(true);
@@ -36,6 +37,7 @@ describe("auth guard", () => {
     expect(shouldRedirectUnauthenticated("/mypage", false, samlEnv, "localhost")).toBe(true);
     expect(shouldRedirectUnauthenticated("/settings", false, samlEnv, "localhost")).toBe(true);
     expect(shouldRedirectUnauthenticated("/mypage", true, samlEnv, "localhost")).toBe(false);
+    expect(shouldRedirectUnauthenticated("/login", false, samlEnv, "localhost")).toBe(false);
     expect(shouldRedirectUnauthenticated("/api/auth/saml/login", false, samlEnv, "localhost")).toBe(
       false
     );
