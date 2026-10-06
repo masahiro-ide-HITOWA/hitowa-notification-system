@@ -235,6 +235,38 @@ describe("SAML routes with mock auth", () => {
     }
   });
 
+  it("callback includes the validation error detail", async () => {
+    const previous = process.env.USE_MOCK_AUTH;
+    process.env.USE_MOCK_AUTH = "false";
+    try {
+      const { POST: callbackPost } = await import("../apps/web/app/api/auth/saml/callback/route");
+      const res = await callbackPost(
+        new Request("http://localhost/api/auth/saml/callback", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ SAMLResponse: "not-a-valid-response" }),
+        })
+      );
+      expect(res.status).toBe(401);
+      const body: unknown = await res.json();
+      expect(body).toMatchObject({
+        success: false,
+        message: "SAML Response の検証に失敗しました",
+      });
+      expect(body).toHaveProperty("detail");
+      if (typeof body === "object" && body !== null && "detail" in body) {
+        expect(typeof body.detail).toBe("string");
+        expect(body.detail).not.toBe("");
+      }
+    } finally {
+      if (previous === undefined) {
+        delete process.env.USE_MOCK_AUTH;
+      } else {
+        process.env.USE_MOCK_AUTH = previous;
+      }
+    }
+  });
+
   it("logout clears the session cookie and redirects to SAML login", async () => {
     const { GET: logoutGet, POST: logoutPost } = await import(
       "../apps/web/app/api/auth/logout/route"

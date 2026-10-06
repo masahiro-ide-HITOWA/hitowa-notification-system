@@ -52,8 +52,13 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("[saml] callback validation failed", error);
+    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { success: false, message: "SAML Response の検証に失敗しました" },
+      {
+        success: false,
+        message: "SAML Response の検証に失敗しました",
+        detail,
+      },
       { status: 401 }
     );
   }
