@@ -260,17 +260,18 @@ describe("SAML routes with mock auth", () => {
           body: JSON.stringify({ SAMLResponse: "not-a-valid-response" }),
         })
       );
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(400);
       const body: unknown = await res.json();
       expect(body).toMatchObject({
         success: false,
         message: "SAML Response の検証に失敗しました",
       });
-      expect(body).toHaveProperty("detail");
-      if (typeof body === "object" && body !== null && "detail" in body) {
-        expect(typeof body.detail).toBe("string");
-        expect(body.detail).not.toBe("");
+      if (typeof body !== "object" || body === null || !("detail" in body)) {
+        throw new Error("detail missing");
       }
+      expect(String(body.detail)).toContain("EnvCertLen:");
+      expect(String(body.detail)).toContain("Start:");
+      expect(String(body.detail)).toContain("End:");
     } finally {
       if (previous === undefined) {
         delete process.env.USE_MOCK_AUTH;
