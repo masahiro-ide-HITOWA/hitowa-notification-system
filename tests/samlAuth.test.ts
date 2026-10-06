@@ -12,6 +12,7 @@ import {
   isMockAuthEnabled,
 } from "../apps/web/lib/auth-mode";
 import {
+  missingSamlEnvKeys,
   normalizeSamlCertificate,
   readSamlEnv,
 } from "../apps/web/lib/saml";
@@ -44,6 +45,14 @@ describe("isMockAuthEnabled", () => {
 describe("readSamlEnv", () => {
   it("returns null when any SAML variable is missing", () => {
     expect(readSamlEnv({ ...samlEnv, SAML_CERT: "" })).toBeNull();
+  });
+
+  it("names env keys that are undefined or blank", () => {
+    expect(missingSamlEnvKeys({ ...samlEnv, SAML_CERT: "  ", SAML_ISSUER: undefined })).toEqual([
+      "SAML_CERT",
+      "SAML_ISSUER",
+    ]);
+    expect(missingSamlEnvKeys(samlEnv)).toEqual([]);
   });
 
   it("normalizes a PEM-less IdP certificate", () => {
@@ -180,6 +189,48 @@ describe("SAML routes with mock auth", () => {
         delete process.env.USE_MOCK_AUTH;
       } else {
         process.env.USE_MOCK_AUTH = previous;
+      }
+    }
+  });
+
+  it("login lists missing SAML env keys", async () => {
+    const previousMock = process.env.USE_MOCK_AUTH;
+    const touched = [
+      "SAML_ENTRY_POINT",
+      "SAML_IDP_ISSUER",
+      "SAML_CERT",
+      "SAML_ISSUER",
+      "SAML_CALLBACK_URL",
+    ] as const;
+    const saved = Object.fromEntries(touched.map((key) => [key, process.env[key]]));
+    process.env.USE_MOCK_AUTH = "false";
+    process.env.SAML_ENTRY_POINT = samlEnv.SAML_ENTRY_POINT;
+    process.env.SAML_IDP_ISSUER = samlEnv.SAML_IDP_ISSUER;
+    process.env.SAML_CALLBACK_URL = samlEnv.SAML_CALLBACK_URL;
+    delete process.env.SAML_CERT;
+    process.env.SAML_ISSUER = "   ";
+    try {
+      const { GET: loginGet } = await import("../apps/web/app/api/auth/saml/login/route");
+      const res = await loginGet(new Request("http://localhost/api/auth/saml/login"));
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({
+        success: false,
+        message: "SAML 環境変数が不足しています",
+        missingKeys: ["SAML_CERT", "SAML_ISSUER"],
+      });
+    } finally {
+      for (const key of touched) {
+        const value = saved[key];
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+      if (previousMock === undefined) {
+        delete process.env.USE_MOCK_AUTH;
+      } else {
+        process.env.USE_MOCK_AUTH = previousMock;
       }
     }
   });

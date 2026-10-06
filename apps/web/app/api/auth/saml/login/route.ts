@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSamlClient, isMockAuthEnabled, SAML_CALLBACK_PATH } from "@/lib/saml";
+import { getSamlClient, isMockAuthEnabled, MissingSamlEnvError, SAML_CALLBACK_PATH } from "@/lib/saml";
 import { hostnameFromRequest } from "@/lib/auth-mode";
 import { absoluteUrlFromRequest, resolveRequestOrigin } from "@/lib/request-origin";
 
@@ -15,6 +15,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("[saml] failed to start login", error);
+    if (error instanceof MissingSamlEnvError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.message,
+          missingKeys: error.missingKeys,
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       {
         success: false,

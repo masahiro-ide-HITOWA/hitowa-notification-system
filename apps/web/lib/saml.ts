@@ -45,7 +45,37 @@ export function normalizeSamlCertificate(raw: string): string {
   return `-----BEGIN CERTIFICATE-----\n${lines.join("\n")}\n-----END CERTIFICATE-----`;
 }
 
+const REQUIRED_SAML_ENV_KEYS = [
+  "SAML_ENTRY_POINT",
+  "SAML_IDP_ISSUER",
+  "SAML_CERT",
+  "SAML_ISSUER",
+  "SAML_CALLBACK_URL",
+] as const;
+
+export type SamlEnvKey = (typeof REQUIRED_SAML_ENV_KEYS)[number];
+
+export function missingSamlEnvKeys(env: NodeJS.ProcessEnv = process.env): SamlEnvKey[] {
+  return REQUIRED_SAML_ENV_KEYS.filter((key) => {
+    const value = env[key];
+    return value === undefined || value.trim() === "";
+  });
+}
+
+export class MissingSamlEnvError extends Error {
+  readonly missingKeys: SamlEnvKey[];
+
+  constructor(missingKeys: SamlEnvKey[]) {
+    super("SAML 環境変数が不足しています");
+    this.name = "MissingSamlEnvError";
+    this.missingKeys = missingKeys;
+  }
+}
+
 export function readSamlEnv(env: NodeJS.ProcessEnv = process.env): SamlEnvConfig | null {
+  if (missingSamlEnvKeys(env).length > 0) {
+    return null;
+  }
   const entryPoint = env.SAML_ENTRY_POINT?.trim() ?? "";
   const idpIssuer = env.SAML_IDP_ISSUER?.trim() ?? "";
   const cert = env.SAML_CERT?.trim() ?? "";
@@ -79,9 +109,13 @@ export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
 }
 
 export function getSamlClient(env: NodeJS.ProcessEnv = process.env): SamlClientLike {
+  const missingKeys = missingSamlEnvKeys(env);
+  if (missingKeys.length > 0) {
+    throw new MissingSamlEnvError(missingKeys);
+  }
   const config = readSamlEnv(env);
   if (!config) {
-    throw new Error("SAML 環境変数が不足しています");
+    throw new MissingSamlEnvError(missingSamlEnvKeys(env));
   }
   return createSamlClient(config);
 }
