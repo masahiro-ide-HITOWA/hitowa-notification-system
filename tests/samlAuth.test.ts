@@ -12,6 +12,7 @@ import {
   isMockAuthEnabled,
 } from "../apps/web/lib/auth-mode";
 import {
+  createSamlClient,
   formatCertificate,
   missingSamlEnvKeys,
   normalizeSamlCertificate,
@@ -77,6 +78,30 @@ describe("formatCertificate", () => {
     expect(normalizeSamlCertificate(`-----BEGIN CERTIFICATE-----\\n${body}\\n-----END CERTIFICATE-----`)).toBe(
       pem
     );
+  });
+
+  it("passes a PEM cert and accepts a response signature without a signed assertion", () => {
+    const client = createSamlClient({
+      entryPoint: samlEnv.SAML_ENTRY_POINT,
+      idpIssuer: samlEnv.SAML_IDP_ISSUER,
+      idpCert: "A".repeat(70),
+      issuer: samlEnv.SAML_ISSUER,
+      callbackUrl: samlEnv.SAML_CALLBACK_URL,
+    }) as unknown as {
+      options: {
+        cert: string;
+        idpCert: string;
+        wantAssertionsSigned: boolean;
+        wantAuthnResponseSigned: boolean;
+        signatureAlgorithm: string;
+      };
+    };
+    const pem = `-----BEGIN CERTIFICATE-----\n${"A".repeat(64)}\n${"A".repeat(6)}\n-----END CERTIFICATE-----`;
+    expect(client.options.cert).toBe(pem);
+    expect(client.options.idpCert).toBe(pem);
+    expect(client.options.wantAssertionsSigned).toBe(false);
+    expect(client.options.wantAuthnResponseSigned).toBe(false);
+    expect(client.options.signatureAlgorithm).toBe("sha256");
   });
 
   it("wraps a one-line cert body", () => {

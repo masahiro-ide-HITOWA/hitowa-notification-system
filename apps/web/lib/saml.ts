@@ -101,18 +101,22 @@ export function readSamlEnv(env: NodeJS.ProcessEnv = process.env): SamlEnvConfig
 }
 
 export function createSamlClient(config: SamlEnvConfig): SamlClientLike {
-  return new SAML({
+  const formattedCert = formatCertificate(config.idpCert);
+  const options = {
     entryPoint: config.entryPoint,
     idpIssuer: config.idpIssuer,
-    idpCert: config.idpCert,
+    cert: formattedCert,
+    idpCert: formattedCert,
     issuer: config.issuer,
     callbackUrl: config.callbackUrl,
     audience: config.issuer,
-    wantAssertionsSigned: true,
+    wantAssertionsSigned: false,
     wantAuthnResponseSigned: false,
+    signatureAlgorithm: "sha256" as const,
     forceAuthn: true,
     identifierFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-  }) as unknown as SamlClientLike;
+  };
+  return new SAML(options as unknown as ConstructorParameters<typeof SAML>[0]) as unknown as SamlClientLike;
 }
 
 export function getSamlClient(env: NodeJS.ProcessEnv = process.env): SamlClientLike {
