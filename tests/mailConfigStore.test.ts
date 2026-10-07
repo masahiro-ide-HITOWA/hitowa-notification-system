@@ -196,9 +196,9 @@ describe("saveMailConfig / getMailConfig", () => {
       passwordMasked: "",
     });
     expect(DEFAULT_MAIL_HOSTS).toEqual({
-      imapHost: "imap.kagoya.net",
-      imapPort: 993,
-      smtpHost: "smtp.kagoya.net",
+      imapHost: "mss191.kagoya.net",
+      imapPort: 143,
+      smtpHost: "mss191.kagoya.net",
       smtpPort: 587,
     });
   });

@@ -1,6 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { imapRequireTls, imapTlsMode, withImapPortFallback } from "@/lib/imap-port-fallback";
+import { imapRequireTls, imapTlsMode } from "@/lib/imap-port-fallback";
 import { isImapSecure, type MailConfigInput } from "@/lib/mail-config";
 import { getMailConfigForConnection } from "@/lib/mail-config-store";
 import {
@@ -69,41 +69,40 @@ async function connectMailboxClient(
   config: MailConfigInput,
   createClient: (config: MailConfigInput) => ImapClientLike
 ): Promise<ImapClientLike> {
-  return withImapPortFallback(config.imapPort, async (port) => {
-    const tlsMode = imapTlsMode(port);
-    const started = Date.now();
-    console.log("[mail-imap] IMAP connect start", {
+  const port = config.imapPort;
+  const tlsMode = imapTlsMode(port);
+  const started = Date.now();
+  console.log("[mail-imap] IMAP connect start", {
+    host: config.imapHost,
+    port,
+    tlsMode,
+    requireTLS: imapRequireTls(port),
+  });
+  const client = createClient(config);
+  try {
+    await client.connect();
+    console.log("[mail-imap] IMAP connect ok", {
       host: config.imapHost,
       port,
       tlsMode,
-      requireTLS: imapRequireTls(port),
+      elapsedMs: Date.now() - started,
     });
-    const client = createClient({ ...config, imapPort: port });
+    return client;
+  } catch (error) {
+    console.error("[mail-imap] IMAP connect failed", {
+      host: config.imapHost,
+      port,
+      tlsMode,
+      elapsedMs: Date.now() - started,
+      message: error instanceof Error ? error.message : String(error),
+    });
     try {
-      await client.connect();
-      console.log("[mail-imap] IMAP connect ok", {
-        host: config.imapHost,
-        port,
-        tlsMode,
-        elapsedMs: Date.now() - started,
-      });
-      return client;
-    } catch (error) {
-      console.error("[mail-imap] IMAP connect failed", {
-        host: config.imapHost,
-        port,
-        tlsMode,
-        elapsedMs: Date.now() - started,
-        message: error instanceof Error ? error.message : String(error),
-      });
-      try {
-        await client.logout();
-      } catch {
-        // the failed socket may already be closed
-      }
-      throw error;
+      await client.logout();
+    } catch {
+      // the failed socket may already be closed
     }
-  });
+    throw error;
+  }
 }
 
 async function withMailbox<T>(

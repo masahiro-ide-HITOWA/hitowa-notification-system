@@ -1,7 +1,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { parseEmailNotification, parsedMailToEmailPayload, addressLikeToText, type ParsedEmailNotification } from "@/lib/email-parser";
-import { imapRequireTls, imapTlsMode, withImapPortFallback } from "@/lib/imap-port-fallback";
+import { imapRequireTls, imapTlsMode } from "@/lib/imap-port-fallback";
 import { isImapSecure } from "@/lib/mail-config";
 import { type ImapClientLike } from "@/lib/mail-imap";
 import { type MailFetchedLike } from "@/lib/mail-imap-model";
@@ -11,41 +11,40 @@ export async function connectSaasClient(
   credentials: MailCredentials,
   createClient: (credentials: MailCredentials) => ImapClientLike
 ): Promise<ImapClientLike> {
-  return withImapPortFallback(credentials.port, async (port) => {
-    const tlsMode = imapTlsMode(port);
-    const started = Date.now();
-    console.log("[email-fetcher] IMAP connect start", {
+  const port = credentials.port;
+  const tlsMode = imapTlsMode(port);
+  const started = Date.now();
+  console.log("[email-fetcher] IMAP connect start", {
+    host: credentials.host,
+    port,
+    tlsMode,
+    requireTLS: imapRequireTls(port),
+  });
+  const client = createClient(credentials);
+  try {
+    await client.connect();
+    console.log("[email-fetcher] IMAP connect ok", {
       host: credentials.host,
       port,
       tlsMode,
-      requireTLS: imapRequireTls(port),
+      elapsedMs: Date.now() - started,
     });
-    const client = createClient({ ...credentials, port });
+    return client;
+  } catch (error) {
+    console.error("[email-fetcher] IMAP connect failed", {
+      host: credentials.host,
+      port,
+      tlsMode,
+      elapsedMs: Date.now() - started,
+      message: error instanceof Error ? error.message : String(error),
+    });
     try {
-      await client.connect();
-      console.log("[email-fetcher] IMAP connect ok", {
-        host: credentials.host,
-        port,
-        tlsMode,
-        elapsedMs: Date.now() - started,
-      });
-      return client;
-    } catch (error) {
-      console.error("[email-fetcher] IMAP connect failed", {
-        host: credentials.host,
-        port,
-        tlsMode,
-        elapsedMs: Date.now() - started,
-        message: error instanceof Error ? error.message : String(error),
-      });
-      try {
-        await client.logout();
-      } catch {
-        // the failed socket may already be closed
-      }
-      throw error;
+      await client.logout();
+    } catch {
+      // the failed socket may already be closed
     }
-  });
+    throw error;
+  }
 }
 
 export function createSaasImapClient(credentials: MailCredentials): ImapClientLike {

@@ -19,7 +19,7 @@ export default async function MailSettingsPage() {
         <div>
           <h1 className="text-lg font-bold text-slate-900">メール接続設定</h1>
           <p className="text-xs text-slate-500 mt-1">
-            IMAP/SMTP のサーバーとポート、アカウント名、パスワードを登録します。未入力時の IMAP は imap.kagoya.net:993（TLS）です。
+            KAGOYA（mss191.kagoya.net）へ IMAP 143（STARTTLS）と SMTP 587 で接続します。メールアドレスとアカウントIDは自動設定です。
           </p>
         </div>
         {enabled ? (

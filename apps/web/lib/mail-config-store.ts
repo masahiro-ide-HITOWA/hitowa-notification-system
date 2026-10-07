@@ -1,4 +1,5 @@
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { KAGOYA_IMAP_PORT, KAGOYA_MAIL_HOST, KAGOYA_SMTP_PORT } from "@/lib/mail-config-defaults";
 import { decryptPassword, encryptPassword } from "@/lib/mail-crypto";
 import {
   planMailPasswordUpdate,
@@ -65,10 +66,10 @@ export async function getMailConfigForConnection(
   }
   return {
     portalUserId,
-    imapHost: record.imapHost,
-    imapPort: record.imapPort,
-    smtpHost: record.smtpHost,
-    smtpPort: record.smtpPort,
+    imapHost: KAGOYA_MAIL_HOST,
+    imapPort: KAGOYA_IMAP_PORT,
+    smtpHost: KAGOYA_MAIL_HOST,
+    smtpPort: KAGOYA_SMTP_PORT,
     username: record.username,
     password: decryptPassword(record.passwordEncrypted),
   };

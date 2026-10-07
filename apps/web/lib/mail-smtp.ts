@@ -33,10 +33,12 @@ export interface MailSmtpDeps {
 }
 
 function defaultCreateTransport(config: MailConfigInput): SmtpTransportLike {
+  const secure = isSmtpSecure(config.smtpPort);
   const transporter: Transporter = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
-    secure: isSmtpSecure(config.smtpPort),
+    secure,
+    requireTLS: !secure,
     auth: {
       user: config.username,
       pass: config.password,

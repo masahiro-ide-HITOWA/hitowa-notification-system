@@ -69,7 +69,17 @@ describe("mail config save and connection test", () => {
       message: MAIL_CONFIG_SAVED_MESSAGE,
       config: savedConfig,
     });
-    expect(saveMailConfig).toHaveBeenCalledOnce();
+    expect(saveMailConfig).toHaveBeenCalledWith(
+      "00400611",
+      expect.objectContaining({
+        imapHost: "mss191.kagoya.net",
+        imapPort: 143,
+        smtpHost: "mss191.kagoya.net",
+        smtpPort: 587,
+        username: "kir088959.field",
+        password: "secret",
+      })
+    );
     expect(verifyMailConnection).not.toHaveBeenCalled();
     expect(resolveMailConfigPlaintext).not.toHaveBeenCalled();
   });
@@ -80,7 +90,14 @@ describe("mail config save and connection test", () => {
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(verifyMailConnection).toHaveBeenCalledOnce();
+    expect(verifyMailConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imapHost: "mss191.kagoya.net",
+        imapPort: 143,
+        smtpPort: 587,
+        username: "kir088959.field",
+      })
+    );
     expect(saveMailConfig).not.toHaveBeenCalled();
   });
 

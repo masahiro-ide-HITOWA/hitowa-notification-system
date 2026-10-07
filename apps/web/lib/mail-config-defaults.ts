@@ -1,22 +1,28 @@
-function readHost(value: string | undefined, fallback: string): string {
-  const trimmed = value?.trim() ?? "";
-  return trimmed !== "" ? trimmed : fallback;
-}
+export const KAGOYA_MAIL_HOST = "mss191.kagoya.net";
+export const KAGOYA_IMAP_PORT = 143;
+export const KAGOYA_SMTP_PORT = 587;
+export const KAGOYA_ACCOUNT_PREFIX = "kir088959.";
 
-function readPort(value: string | undefined, fallback: number): number {
-  if (!value || value.trim() === "") {
-    return fallback;
-  }
-  const parsed = Number(value.trim());
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-/** KAGOYA IMAP/SMTP. Override via MAIL_IMAP_HOST / MAIL_IMAP_PORT / MAIL_SMTP_HOST / MAIL_SMTP_PORT. */
+/** KAGOYA webmail endpoints. Host and ports are fixed. */
 export const MAIL_SERVER_DEFAULTS = {
-  imapHost: readHost(process.env.MAIL_IMAP_HOST, "imap.kagoya.net"),
-  imapPort: readPort(process.env.MAIL_IMAP_PORT, 993),
-  smtpHost: readHost(process.env.MAIL_SMTP_HOST, "smtp.kagoya.net"),
-  smtpPort: readPort(process.env.MAIL_SMTP_PORT, 587),
+  imapHost: KAGOYA_MAIL_HOST,
+  imapPort: KAGOYA_IMAP_PORT,
+  smtpHost: KAGOYA_MAIL_HOST,
+  smtpPort: KAGOYA_SMTP_PORT,
 };
 
 export const ACCOUNT_NAME_PLACEHOLDER = "masahiro-ide@hitowa.com";
+
+/** `masahiro-ide@gr.hitowa.com` → `kir088959.masahiro-ide` */
+export function kagoyaAccountId(email: string): string | null {
+  const trimmed = email.trim();
+  const at = trimmed.indexOf("@");
+  if (at <= 0) {
+    return null;
+  }
+  const local = trimmed.slice(0, at).trim();
+  if (local === "") {
+    return null;
+  }
+  return `${KAGOYA_ACCOUNT_PREFIX}${local}`;
+}

@@ -1,7 +1,7 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { describeImapConnectionError, maskImapSecrets } from "@/lib/email-imap-error";
-import { imapRequireTls, imapTlsMode, withImapPortFallback } from "@/lib/imap-port-fallback";
+import { imapRequireTls, imapTlsMode } from "@/lib/imap-port-fallback";
 import { isImapSecure, isSmtpSecure, type MailConfigInput } from "@/lib/mail-config";
 
 export class MailConfigVerifyError extends Error {
@@ -85,14 +85,16 @@ async function connectVerifyImap(config: MailConfigInput): Promise<void> {
 }
 
 async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
-  await withImapPortFallback(config.imapPort, (port) => connectVerifyImap({ ...config, imapPort: port }));
+  await connectVerifyImap(config);
 }
 
 async function defaultVerifySmtp(config: MailConfigInput): Promise<void> {
+  const secure = isSmtpSecure(config.smtpPort);
   const transporter = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
-    secure: isSmtpSecure(config.smtpPort),
+    secure,
+    requireTLS: !secure,
     auth: { user: config.username, pass: config.password },
   });
   await transporter.verify();

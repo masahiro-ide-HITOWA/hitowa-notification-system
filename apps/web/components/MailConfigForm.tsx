@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { MailPasswordField } from "@/components/MailPasswordField";
+import { PASSWORD_KEEP_PLACEHOLDER } from "@/lib/mail-config";
 import {
-  DEFAULT_MAIL_HOSTS,
-  mailAccountNameOrSessionEmail,
-  PASSWORD_KEEP_PLACEHOLDER,
-  type MailConfigPublic,
-} from "@/lib/mail-config";
+  KAGOYA_IMAP_PORT,
+  KAGOYA_MAIL_HOST,
+  KAGOYA_SMTP_PORT,
+  kagoyaAccountId,
+} from "@/lib/mail-config-defaults";
 import {
   MAIL_CONFIG_SAVED_MESSAGE,
   mailApiErrorMessage,
@@ -21,12 +23,12 @@ interface MailConfigFormProps {
   email: string;
 }
 
+const fieldClass =
+  "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none";
+const lockedClass = `${fieldClass} bg-slate-50 text-slate-500`;
+
 export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
-  const [imapHost, setImapHost] = useState(DEFAULT_MAIL_HOSTS.imapHost);
-  const [imapPort, setImapPort] = useState(String(DEFAULT_MAIL_HOSTS.imapPort));
-  const [smtpHost, setSmtpHost] = useState(DEFAULT_MAIL_HOSTS.smtpHost);
-  const [smtpPort, setSmtpPort] = useState(String(DEFAULT_MAIL_HOSTS.smtpPort));
-  const [username, setUsername] = useState(email);
+  const accountId = kagoyaAccountId(email) ?? "";
   const [password, setPassword] = useState("");
   const [hasPassword, setHasPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -34,16 +36,6 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const applyConfig = (config: MailConfigPublic) => {
-    setImapHost(config.imapHost);
-    setImapPort(String(config.imapPort));
-    setSmtpHost(config.smtpHost);
-    setSmtpPort(String(config.smtpPort));
-    setUsername(mailAccountNameOrSessionEmail(config.username, email));
-    setPassword("");
-    setHasPassword(config.hasPassword);
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +51,8 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
           throw new Error(data.message || "設定の取得に失敗しました");
         }
         if (!cancelled) {
-          applyConfig(data.config);
+          setPassword("");
+          setHasPassword(data.config.hasPassword);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -81,11 +74,11 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
     mailConfigRequestBody({
       portalUserId,
       email,
-      imapHost,
-      imapPort,
-      smtpHost,
-      smtpPort,
-      username,
+      imapHost: KAGOYA_MAIL_HOST,
+      imapPort: String(KAGOYA_IMAP_PORT),
+      smtpHost: KAGOYA_MAIL_HOST,
+      smtpPort: String(KAGOYA_SMTP_PORT),
+      username: accountId,
       password,
     });
 
@@ -109,9 +102,8 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
     setError("");
     try {
       const data = await postConfig("/api/mail/config");
-      if (data.config) {
-        applyConfig(data.config);
-      }
+      setPassword("");
+      setHasPassword(data.config?.hasPassword ?? true);
       setMessage(MAIL_CONFIG_SAVED_MESSAGE);
     } catch (saveError) {
       setError(mailApiErrorMessage(saveError, "保存に失敗しました"));
@@ -134,49 +126,44 @@ export function MailConfigForm({ portalUserId, email }: MailConfigFormProps) {
     }
   };
 
-  const fieldClass =
-    "mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none";
   const busy = saving || testing || loading;
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
       {loading ? <p className="text-xs text-slate-500">設定を読み込んでいます...</p> : null}
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_7rem] gap-3">
-        <label className="block text-xs font-semibold text-slate-600">
-          IMAP サーバー
-          <input className={fieldClass} value={imapHost} onChange={(e) => setImapHost(e.target.value)} required />
-        </label>
-        <label className="block text-xs font-semibold text-slate-600">
-          IMAP ポート
-          <input className={fieldClass} value={imapPort} onChange={(e) => setImapPort(e.target.value)} inputMode="numeric" required />
-        </label>
-        <label className="block text-xs font-semibold text-slate-600">
-          SMTP サーバー
-          <input className={fieldClass} value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} required />
-        </label>
-        <label className="block text-xs font-semibold text-slate-600">
-          SMTP ポート
-          <input className={fieldClass} value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} inputMode="numeric" required />
-        </label>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_7rem_7rem] gap-3">
+        <LockedField label="接続ホスト名" value={KAGOYA_MAIL_HOST} />
+        <LockedField label="IMAP ポート" value={String(KAGOYA_IMAP_PORT)} />
+        <LockedField label="SMTP ポート" value={String(KAGOYA_SMTP_PORT)} />
       </div>
-      <label className="block text-xs font-semibold text-slate-600">
-        アカウント名
-        <input className={fieldClass} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder={email} required />
-      </label>
-      <label className="block text-xs font-semibold text-slate-600">
-        パスワード
-        <input className={fieldClass} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder={hasPassword ? PASSWORD_KEEP_PLACEHOLDER : ""} required={!hasPassword} />
-      </label>
+      <LockedField label="メールアドレス" value={email} />
+      <LockedField label="アカウントID" value={accountId} />
+      <MailPasswordField
+        value={password}
+        onChange={setPassword}
+        placeholder={hasPassword ? PASSWORD_KEEP_PLACEHOLDER : ""}
+        required={!hasPassword}
+        fieldClass={fieldClass}
+      />
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={busy} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold disabled:opacity-50">
+        <button type="submit" disabled={busy || accountId === ""} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold disabled:opacity-50">
           {saving ? "保存中..." : "設定を保存"}
         </button>
-        <button type="button" disabled={busy} onClick={() => void handleTest()} className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700 disabled:opacity-50">
+        <button type="button" disabled={busy || accountId === ""} onClick={() => void handleTest()} className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700 disabled:opacity-50">
           {testing ? "接続テスト中..." : "接続テスト"}
         </button>
         {message ? <span className="text-xs font-semibold text-emerald-700">{message}</span> : null}
         {error ? <span className="text-xs font-semibold text-rose-600">{error}</span> : null}
       </div>
     </form>
+  );
+}
+
+function LockedField({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block text-xs font-semibold text-slate-600">
+      {label}
+      <input className={lockedClass} value={value} readOnly disabled />
+    </label>
   );
 }

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { parseMailConfigInput, parseMailSettingsActor } from "@/lib/mail-config";
+import { parseMailSettingsActor, type MailConfigInput } from "@/lib/mail-config";
+import {
+  KAGOYA_IMAP_PORT,
+  KAGOYA_MAIL_HOST,
+  KAGOYA_SMTP_PORT,
+  kagoyaAccountId,
+} from "@/lib/mail-config-defaults";
 import { MAIL_CONFIG_SAVED_MESSAGE } from "@/lib/mail-config-client";
 import {
   getMailConfig,
@@ -29,6 +35,29 @@ function forbiddenResponse() {
     { success: false, message: "※本部社員はWebメール機能の対象外です" },
     { status: 403 }
   );
+}
+
+function passwordFromBody(body: unknown): string {
+  if (typeof body !== "object" || body === null || !("password" in body)) {
+    return "";
+  }
+  const password = (body as { password?: unknown }).password;
+  return typeof password === "string" ? password : "";
+}
+
+function kagoyaConfigFromEmail(email: string, body: unknown): MailConfigInput | null {
+  const username = kagoyaAccountId(email);
+  if (!username) {
+    return null;
+  }
+  return {
+    imapHost: KAGOYA_MAIL_HOST,
+    imapPort: KAGOYA_IMAP_PORT,
+    smtpHost: KAGOYA_MAIL_HOST,
+    smtpPort: KAGOYA_SMTP_PORT,
+    username,
+    password: passwordFromBody(body),
+  };
 }
 
 export async function handleMailConfigGet(request: Request): Promise<NextResponse> {
@@ -75,10 +104,10 @@ export async function handleMailConfigSave(request: Request): Promise<NextRespon
     return forbiddenResponse();
   }
 
-  const config = parseMailConfigInput(body);
+  const config = kagoyaConfigFromEmail(actor.email, body);
   if (!config) {
     return NextResponse.json(
-      { success: false, message: "アカウント名が入力されていません" },
+      { success: false, message: "メールアドレスからアカウントIDを作成できません" },
       { status: 400 }
     );
   }
@@ -124,10 +153,10 @@ export async function handleMailConfigTest(request: Request): Promise<NextRespon
     return forbiddenResponse();
   }
 
-  const config = parseMailConfigInput(body);
+  const config = kagoyaConfigFromEmail(actor.email, body);
   if (!config) {
     return NextResponse.json(
-      { success: false, message: "アカウント名が入力されていません" },
+      { success: false, message: "メールアドレスからアカウントIDを作成できません" },
       { status: 400 }
     );
   }
