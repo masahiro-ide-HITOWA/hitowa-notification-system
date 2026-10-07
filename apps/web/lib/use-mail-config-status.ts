@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { MailConfigPublic } from "@/lib/mail-config";
+import { readApiJson, type MailConfigApiBody } from "@/lib/mail-config-client";
 
 export function useMailConfigStatus(
   portalUserId: string,
@@ -17,7 +17,7 @@ export function useMailConfigStatus(
         const res = await fetch("/api/mail/config", {
           headers: { "x-user-id": portalUserId, "x-user-email": email },
         });
-        const data = (await res.json()) as { success?: boolean; config?: MailConfigPublic };
+        const data = await readApiJson<MailConfigApiBody>(res);
         if (!cancelled && res.ok && data.success && data.config) {
           setStatus({
             username: data.config.username,

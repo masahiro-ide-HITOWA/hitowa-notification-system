@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseMailConfigInput, parseMailSettingsActor } from "@/lib/mail-config";
+import { MAIL_CONFIG_SAVED_MESSAGE } from "@/lib/mail-config-client";
 import {
   getMailConfig,
   resolveMailConfigPlaintext,
@@ -83,16 +84,63 @@ export async function handleMailConfigSave(request: Request): Promise<NextRespon
   }
 
   try {
-    const forTest = await resolveMailConfigPlaintext(actor.portalUserId, config);
-    await verifyMailConnection(forTest);
     const saved = await saveMailConfig(actor.portalUserId, config);
     return NextResponse.json({
       success: true,
-      message: "接続を確認し、メール接続設定を保存しました",
+      message: MAIL_CONFIG_SAVED_MESSAGE,
       config: saved,
     });
   } catch (error) {
     console.error("[mail-config] SAVE failed", error);
+    if (error instanceof Error && error.message === "password is required") {
+      return NextResponse.json(
+        { success: false, message: "メールパスワードは必須です" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, message: "メール設定の保存に失敗しました" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function handleMailConfigTest(request: Request): Promise<NextResponse> {
+  let body: unknown = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const actor = actorFromRequest(request, body, null);
+  if (!actor) {
+    return NextResponse.json(
+      { success: false, message: "portalUserId が指定されていません" },
+      { status: 400 }
+    );
+  }
+  if (!canUseWebMail(actor.email)) {
+    return forbiddenResponse();
+  }
+
+  const config = parseMailConfigInput(body);
+  if (!config) {
+    return NextResponse.json(
+      { success: false, message: "アカウント名が入力されていません" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const forTest = await resolveMailConfigPlaintext(actor.portalUserId, config);
+    await verifyMailConnection(forTest);
+    return NextResponse.json({
+      success: true,
+      message: "メールサーバーへの接続に成功しました",
+    });
+  } catch (error) {
+    console.error("[mail-config] connection test failed", error);
     if (error instanceof Error && error.message === "password is required") {
       return NextResponse.json(
         { success: false, message: "メールパスワードは必須です" },
@@ -106,7 +154,7 @@ export async function handleMailConfigSave(request: Request): Promise<NextRespon
       );
     }
     return NextResponse.json(
-      { success: false, message: "メール設定の保存に失敗しました" },
+      { success: false, message: "メール接続テストに失敗しました" },
       { status: 500 }
     );
   }
