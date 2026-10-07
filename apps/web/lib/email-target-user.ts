@@ -1,5 +1,62 @@
 const HITOWA_EMAIL_PATTERN = /[A-Z0-9._%+-]+@(?:gr\.)?hitowa\.com/gi;
 const FORWARD_SUBJECT_PATTERN = /^(?:fwd:|fw:|転送[:：])\s*/i;
+export const DEFAULT_SHARED_NOTIFICATION_INBOX = "my-notification@hitowa.com";
+
+export function sharedNotificationInbox(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.NOTIFICATION_SHARED_INBOX?.trim().toLowerCase() ?? "";
+  return configured !== "" ? configured : DEFAULT_SHARED_NOTIFICATION_INBOX;
+}
+
+export function isSharedNotificationAddress(
+  email: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  const value = email?.trim().toLowerCase() ?? "";
+  return value !== "" && value === sharedNotificationInbox(env);
+}
+
+export function fallbackPortalUserIds(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env.NOTIFICATION_FALLBACK_PORTAL_USER_ID?.trim() ?? "";
+  if (raw === "") {
+    return [];
+  }
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (id !== "" && !seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+export function selectIngestPortalUserIds(input: {
+  recipientEmail: string;
+  sourceRecipient?: string;
+  mappedRecipientId: string | null;
+  sharedInboxMappedId: string | null;
+  envFallbackIds: string[];
+  allMappedIds: string[];
+}, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (input.mappedRecipientId) {
+    return [input.mappedRecipientId];
+  }
+  const viaShared =
+    isSharedNotificationAddress(input.recipientEmail, env) ||
+    isSharedNotificationAddress(input.sourceRecipient, env);
+  if (!viaShared) {
+    return [];
+  }
+  if (input.envFallbackIds.length > 0) {
+    return input.envFallbackIds;
+  }
+  if (input.sharedInboxMappedId) {
+    return [input.sharedInboxMappedId];
+  }
+  return input.allMappedIds;
+}
 
 export function isForwardedSubject(subject: string): boolean {
   return FORWARD_SUBJECT_PATTERN.test(subject.trim());
@@ -34,16 +91,22 @@ function uniqueEmails(haystack: string): string[] {
 export function extractTargetRecipientEmail(
   subject: string,
   body: string,
-  headerTo: string | null
+  headerTo: string | null,
+  headerCc: string | null = null,
+  env: NodeJS.ProcessEnv = process.env
 ): string | null {
-  const haystack = `${subject}\n${body}`;
-  const emails = uniqueEmails(haystack);
   const header = headerTo?.trim().toLowerCase() ?? "";
+  const candidates = uniqueEmails(`${headerCc ?? ""}\n${subject}\n${body}`).filter(
+    (email) => !isSharedNotificationAddress(email, env)
+  );
+  if (isSharedNotificationAddress(header, env)) {
+    return candidates[0] ?? (header !== "" ? header : null);
+  }
   if (header !== "" && /@(?:gr\.)?hitowa\.com$/i.test(header)) {
     return header;
   }
-  if (isForwardedSubject(subject) && emails[0]) {
-    return emails[0];
+  if (isForwardedSubject(subject) && candidates[0]) {
+    return candidates[0];
   }
-  return header !== "" ? header : null;
+  return header !== "" ? header : candidates[0] ?? null;
 }

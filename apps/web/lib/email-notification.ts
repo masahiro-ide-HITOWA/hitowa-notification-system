@@ -56,6 +56,23 @@ export function resolvePortalUserIdFromMappings(
   return isRecord(anyMatch) ? mappingPortalUserId(anyMatch) : null;
 }
 
+export function listMappedPortalUserIds(items: unknown[] | undefined): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of items ?? []) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const id = mappingPortalUserId(item);
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 export function shouldSkipLinePushForMappings(
   items: unknown[] | undefined,
   portalUserId: string

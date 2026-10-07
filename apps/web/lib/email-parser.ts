@@ -5,6 +5,7 @@ import type { NotificationSystemName } from "@/lib/notifications";
 export interface ParsedEmailNotification {
   systemName: NotificationSystemName;
   recipientEmail: string;
+  sourceRecipient?: string;
   title: string;
   body: string;
   actionUrl?: string;
@@ -142,13 +143,14 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
     firstAddress(payload.recipientEmail) ??
     firstAddress(payload.to) ??
     firstAddress(payload.recipient);
+  const headerCc = readNonEmptyString(payload.cc) ?? readNonEmptyString(payload.Cc);
   const subject = readNonEmptyString(payload.subject) ?? "";
   const rawBody =
     readNonEmptyString(payload.body) ??
     readNonEmptyString(payload.text) ??
     readNonEmptyString(payload.html) ??
     "";
-  const recipientEmail = extractTargetRecipientEmail(subject, rawBody, headerTo);
+  const recipientEmail = extractTargetRecipientEmail(subject, rawBody, headerTo, headerCc);
 
   if (!recipientEmail) {
     return { ok: false, message: "宛先メールアドレスを特定できません" };
@@ -164,6 +166,7 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
     notification: {
       systemName,
       recipientEmail,
+      ...(headerTo && headerTo !== recipientEmail ? { sourceRecipient: headerTo } : {}),
       title: cleanTitle(subject, systemName),
       body: summarizeBody(rawBody || subject),
       ...(actionUrl ? { actionUrl } : {}),
