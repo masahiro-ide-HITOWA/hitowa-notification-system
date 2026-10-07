@@ -3,7 +3,9 @@ import { extractTargetRecipientEmail, stripForwardPrefixes } from "@/lib/email-t
 import type { NotificationSystemName } from "@/lib/notifications";
 
 export interface ParsedEmailNotification {
-  systemName: NotificationSystemName;
+  systemName: string;
+  from: string;
+  subject: string;
   recipientEmail: string;
   sourceRecipient?: string;
   title: string;
@@ -76,7 +78,7 @@ function summarizeBody(raw: string): string {
   return collapsed.slice(0, 180) + "...";
 }
 
-function cleanTitle(subject: string, systemName: NotificationSystemName): string {
+function cleanTitle(subject: string, systemName: string): string {
   const stripped = stripForwardPrefixes(subject)
     .replace(/【カオナビ】/g, "")
     .replace(/【TOKIUM】/g, "")
@@ -165,6 +167,8 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
     ok: true,
     notification: {
       systemName,
+      from,
+      subject,
       recipientEmail,
       ...(headerTo && headerTo !== recipientEmail ? { sourceRecipient: headerTo } : {}),
       title: cleanTitle(subject, systemName),

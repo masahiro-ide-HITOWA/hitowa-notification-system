@@ -13,6 +13,7 @@ interface SyncResult {
   unreadCount: number | null;
   fetched: number;
   ingested: number;
+  skipped: number;
   message: string;
   errors: SyncError[];
 }
@@ -49,6 +50,7 @@ function readSyncResult(value: unknown): SyncResult | null {
     unreadCount: typeof record.unreadCount === "number" ? record.unreadCount : null,
     fetched: typeof record.fetched === "number" ? record.fetched : 0,
     ingested: typeof record.ingested === "number" ? record.ingested : 0,
+    skipped: typeof record.skipped === "number" ? record.skipped : 0,
     message: record.message,
     errors,
   };
@@ -106,7 +108,8 @@ export function InboxSyncPanel({ onSynced }: { onSynced: () => void }) {
         <div className="text-xs text-slate-700 space-y-1">
           <p>
             接続: {result.connection === "ok" ? "成功" : "失敗"} / 取得した未読:{" "}
-            {result.unreadCount ?? "不明"} 通 / 取得 {result.fetched} 通 / 保存 {result.ingested} 件
+            {result.unreadCount ?? "不明"} 通 / 取得 {result.fetched} 通 / 保存 {result.ingested} 件 / 対象外{" "}
+            {result.skipped} 件
           </p>
           <p>{result.message}</p>
           {result.errors.map((error, index) => (

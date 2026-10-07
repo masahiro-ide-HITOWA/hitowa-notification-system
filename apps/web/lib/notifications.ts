@@ -7,7 +7,7 @@ export type NotificationSystemName =
 export interface NotificationItem {
   id: string;
   portalUserId: string;
-  systemName: NotificationSystemName;
+  systemName: string;
   title: string;
   body: string;
   isRead: boolean;
@@ -39,13 +39,8 @@ export function formatUnreadBadge(count: number): string | null {
   return String(count);
 }
 
-function isNotificationSystemName(value: unknown): value is NotificationSystemName {
-  return (
-    value === "カオナビ" ||
-    value === "TOKIUM" ||
-    value === "クラウドハウス労務" ||
-    value === "全社ポータル"
-  );
+function isNotificationSystemName(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

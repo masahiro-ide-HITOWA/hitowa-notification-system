@@ -11,6 +11,8 @@ import {
   shouldSkipLinePushForMappings,
 } from "@/lib/email-notification";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
+import { loadNotificationSystemRules } from "@/lib/notification-system-cache";
+import { matchNotificationSystem, type NotificationSystemRule } from "@/lib/notification-system-rule";
 import {
   fallbackPortalUserIds,
   isSharedNotificationAddress,
@@ -34,7 +36,7 @@ const USER_EMAIL_SCAN = {
 
 export type EmailIngestResult =
   | { ok: true; notificationId: string; portalUserId: string }
-  | { ok: false; status: number; message: string; table?: string };
+  | { ok: false; status: number; message: string; table?: string; skipped?: boolean };
 
 async function scanUserMappings(recipientEmail?: string): Promise<unknown[]> {
   try {
@@ -95,11 +97,18 @@ async function resolveIngestPortalUserIds(
 }
 
 export async function ingestParsedEmailNotification(
-  parsed: ParsedEmailNotification
+  parsed: ParsedEmailNotification,
+  rules?: NotificationSystemRule[]
 ): Promise<EmailIngestResult> {
+  const activeRules = rules ?? (await loadNotificationSystemRules());
+  const matched = matchNotificationSystem(activeRules, parsed);
+  if (!matched) {
+    return { ok: false, status: 200, skipped: true, message: "対象システムに一致しないためスキップしました" };
+  }
+  const target = { ...parsed, systemName: matched.systemName };
   let resolved: { ids: string[]; items: unknown[] };
   try {
-    resolved = await resolveIngestPortalUserIds(parsed);
+    resolved = await resolveIngestPortalUserIds(target);
   } catch (error) {
     logEmailWebhookError("[email ingest] HitowaUserMappings scan failed", error);
     if (isDynamoTableMissing(error)) {
@@ -116,7 +125,7 @@ export async function ingestParsedEmailNotification(
   let saved: { notificationId: string; portalUserId: string } | null = null;
   for (const portalUserId of resolved.ids) {
     const notificationId = randomUUID();
-    const notification = createNotificationFromEmail(parsed, portalUserId, notificationId, createdAt);
+    const notification = createNotificationFromEmail(target, portalUserId, notificationId, createdAt);
     try {
       await docClient.send(new PutCommand({ TableName: NOTIFICATION_TABLE, Item: notification }));
     } catch (error) {

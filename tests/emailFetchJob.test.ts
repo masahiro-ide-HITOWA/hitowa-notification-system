@@ -13,6 +13,10 @@ vi.mock("@/lib/email-ingest", () => ({
   ingestParsedEmailNotification: (...args: unknown[]) => ingestParsedEmailNotification(...args),
 }));
 
+vi.mock("@/lib/notification-system-cache", () => ({
+  loadNotificationSystemRules: async () => [],
+}));
+
 describe("fetch email job debug response", () => {
   beforeEach(() => {
     fetchSaasInboxReport.mockReset();

@@ -35,6 +35,9 @@ export async function POST(request: Request) {
 
     const ingested = await ingestParsedEmailNotification(parsed.notification);
     if (!ingested.ok) {
+      if (ingested.skipped) {
+        return NextResponse.json({ success: true, skipped: true, message: ingested.message });
+      }
       return NextResponse.json(
         {
           success: false,

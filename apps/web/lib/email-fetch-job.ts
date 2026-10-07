@@ -1,5 +1,7 @@
 import { fetchSaasInboxReport, type EmailFetcherDeps } from "@/lib/email-fetcher";
 import { ingestParsedEmailNotification } from "@/lib/email-ingest";
+import { loadNotificationSystemRules } from "@/lib/notification-system-cache";
+import type { NotificationSystemRule } from "@/lib/notification-system-rule";
 import { MailCredentialsError } from "@/lib/secrets";
 import { isMailImapError } from "@/lib/mail-imap-model";
 import type { ParsedEmailNotification } from "@/lib/email-parser";
@@ -17,6 +19,7 @@ export interface FetchEmailsJobResult {
   fetched: number;
   parsed: number;
   ingested: number;
+  skipped: number;
   unseenCount: number | null;
   seenCount: number | null;
   message: string;
@@ -27,20 +30,25 @@ export interface FetchEmailsJobResult {
 export async function runFetchEmailsJob(
   folder = "INBOX",
   limit = 20,
-  deps?: EmailFetcherDeps
+  deps?: EmailFetcherDeps,
+  rules?: NotificationSystemRule[]
 ): Promise<FetchEmailsJobResult> {
+  const activeRules = rules ?? (await loadNotificationSystemRules());
   const report = await fetchSaasInboxReport(folder, limit, deps);
   const errors: FetchEmailsJobError[] = report.parseErrors.map((item) => ({
     message: `uid=${item.uid} のパースに失敗しました`,
     detail: item.message,
   }));
   let ingested = 0;
+  let skipped = 0;
 
   for (const notification of report.notifications) {
     try {
-      const result = await ingestParsedEmailNotification(notification);
+      const result = await ingestParsedEmailNotification(notification, activeRules);
       if (result.ok) {
         ingested += 1;
+      } else if (result.skipped) {
+        skipped += 1;
       } else {
         errors.push({
           message: result.message,
@@ -64,11 +72,12 @@ export async function runFetchEmailsJob(
     fetched: report.fetched,
     parsed,
     ingested,
+    skipped,
     unseenCount: report.unseenCount,
     seenCount: report.seenCount,
     message:
       errors.length === 0
-        ? `IMAP接続に成功しました。未読 ${report.unreadFetched ?? report.unseenCount ?? 0} 通、取り込み ${ingested} 件です。`
+        ? `IMAP接続に成功しました。未読 ${report.unreadFetched ?? report.unseenCount ?? 0} 通、取り込み ${ingested} 件、対象外 ${skipped} 件です。`
         : `IMAP接続には成功しましたが、${errors.length} 件の取得・取り込みエラーがあります。`,
     notifications: report.notifications,
     errors,
@@ -83,6 +92,7 @@ function failedJobBody(message: string, errors: FetchEmailsJobError[]): FetchEma
     fetched: 0,
     parsed: 0,
     ingested: 0,
+    skipped: 0,
     unseenCount: null,
     seenCount: null,
     message,

@@ -40,7 +40,11 @@ export function NotificationListItem({ item, onSelect }: NotificationListItemPro
       }`}
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${SYSTEM_BADGE_CLASS[item.systemName]}`}>
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+            SYSTEM_BADGE_CLASS[item.systemName as NotificationSystemName] ?? "bg-slate-600 text-white"
+          }`}
+        >
           {item.systemName}
         </span>
         <span

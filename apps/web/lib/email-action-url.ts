@@ -45,15 +45,16 @@ function collectUrls(text: string): string[] {
   return found;
 }
 
-function matchesSaas(url: string, systemName: NotificationSystemName): boolean {
+function matchesSaas(url: string, systemName: string): boolean {
+  const hints = SAAS_HOST_HINTS[systemName as NotificationSystemName];
+  if (!hints) {
+    return false;
+  }
   const lower = url.toLowerCase();
-  return SAAS_HOST_HINTS[systemName].some((hint) => lower.includes(hint));
+  return hints.some((hint) => lower.includes(hint));
 }
 
-export function extractActionUrl(
-  text: string,
-  systemName: NotificationSystemName = "全社ポータル"
-): string | undefined {
+export function extractActionUrl(text: string, systemName: string = "全社ポータル"): string | undefined {
   const urls = collectUrls(text);
   if (urls.length === 0) {
     return undefined;
