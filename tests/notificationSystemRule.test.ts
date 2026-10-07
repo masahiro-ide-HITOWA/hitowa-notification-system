@@ -96,10 +96,27 @@ describe("notification system rules", () => {
     ).toEqual(["【TOKIUMインボイス】"]);
   });
 
-  it("ignores disabled rules and rows that omit an address or a prefix", () => {
+  it("matches on the sender alone when subject prefixes are empty", () => {
     const disabled: NotificationSystemRule = { ...kaonaviRule, enabled: false };
     const addressOnly: NotificationSystemRule = { ...kaonaviRule, subjectPrefixes: [] };
-    expect(matchNotificationSystem([disabled, addressOnly], kaonaviMail)).toBeNull();
+    const blankPrefix: NotificationSystemRule = { ...kaonaviRule, subjectPrefixes: [""] };
+    expect(matchNotificationSystem([disabled], kaonaviMail)).toBeNull();
+    expect(matchNotificationSystem([addressOnly], kaonaviMail)?.systemName).toBe("カオナビ");
+    expect(matchNotificationSystem([blankPrefix], { ...kaonaviMail, subject: "件名なし" })?.systemName).toBe(
+      "カオナビ"
+    );
+    expect(matchNotificationSystem([addressOnly], googleMail)).toBeNull();
+    const omitted = parseNotificationSystemRules([
+      { systemName: "カオナビ", fromAddresses: ["noreply@kaonavi.jp"], subjectPrefixes: "" },
+      { systemName: "カオナビ", fromAddresses: ["noreply@kaonavi.jp"] },
+    ]);
+    expect(omitted.map((rule) => rule.subjectPrefixes)).toEqual([[], []]);
+    expect(
+      matchNotificationSystem(omitted, { ...kaonaviMail, subject: "評価以外の任意の件名" })?.systemName
+    ).toBe("カオナビ");
+    expect(
+      matchNotificationSystem(tokiumRules, { from: "noreply@tokium.jp", subject: "経費以外のお知らせ" })
+    ).toBeNull();
   });
 
   it("parses sender addresses and subject prefixes from DynamoDB", () => {

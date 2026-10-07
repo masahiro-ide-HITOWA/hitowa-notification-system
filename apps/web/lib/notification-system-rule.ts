@@ -3,7 +3,7 @@ import { stripForwardPrefixes } from "@/lib/email-target-user";
 export interface NotificationSystemRule {
   systemName: string;
   fromAddresses: string[];
-  subjectPrefixes: string[];
+  subjectPrefixes?: string[];
   enabled: boolean;
 }
 
@@ -116,15 +116,17 @@ export function matchNotificationSystem(
   const senders = senderCandidates(mail);
   const subject = stripForwardPrefixes(mail.subject ?? mail.title ?? "").toLowerCase();
   for (const rule of rules) {
-    if (!rule.enabled || rule.fromAddresses.length === 0 || rule.subjectPrefixes.length === 0) {
+    if (!rule.enabled || rule.fromAddresses.length === 0) {
       continue;
     }
     const addressHit = rule.fromAddresses.some((address) => senders.includes(emailAddress(address)));
-    const prefixHit = rule.subjectPrefixes.some((prefix) => {
-      const normalized = prefix.trim().toLowerCase();
-      return normalized !== "" && subject.startsWith(normalized);
-    });
-    if (addressHit && prefixHit) {
+    if (!addressHit) {
+      continue;
+    }
+    const prefixes = (rule.subjectPrefixes ?? [])
+      .map((prefix) => prefix.trim())
+      .filter((prefix) => prefix !== "");
+    if (prefixes.length === 0 || prefixes.some((prefix) => subject.startsWith(prefix.toLowerCase()))) {
       return rule;
     }
   }
