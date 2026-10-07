@@ -25,6 +25,7 @@ export interface SaasInboxFetchReport {
   mailboxExists: number;
   unseenCount: number | null;
   seenCount: number | null;
+  unreadFetched: number | null;
   fetched: number;
   notifications: ParsedEmailNotification[];
   parseErrors: SaasInboxParseError[];
@@ -103,9 +104,15 @@ async function collectInboxMessages(client: ImapClientLike, limit: number): Prom
   const uids = fromSearch.length > 0 ? fromSearch.slice(-limit) : [];
   const notifications: ParsedEmailNotification[] = [];
   const parseErrors: SaasInboxParseError[] = [];
+  const unseenSet = unseenIds ? new Set(unseenIds) : null;
+  let unreadFromFlags = 0;
 
   const consume = async (message: MailFetchedLike) => {
-    console.log("[email-fetcher] message flags", { uid: message.uid, seen: isSeenFlag(message.flags) });
+    const seen = isSeenFlag(message.flags);
+    if (!seen) {
+      unreadFromFlags += 1;
+    }
+    console.log("[email-fetcher] message flags", { uid: message.uid, seen });
     const full = await loadFetchedMessage(client, message);
     if (!full) {
       parseErrors.push({ uid: message.uid, message: "fetchOne returned empty" });
@@ -138,6 +145,8 @@ async function collectInboxMessages(client: ImapClientLike, limit: number): Prom
     unseenCount: unseenIds?.length ?? null,
     seenCount: seenIds?.length ?? null,
     fetched: notifications.length + parseErrors.length,
+    unreadFetched:
+      unseenSet && uids.length > 0 ? uids.filter((uid) => unseenSet.has(uid)).length : unreadFromFlags,
     notifications,
     parseErrors,
   };

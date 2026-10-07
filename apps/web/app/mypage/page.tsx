@@ -1,5 +1,5 @@
 import Header from "@/components/Header";
-import { NotificationList } from "@/components/NotificationList";
+import { MypageInbox } from "@/components/MypageInbox";
 import { hostnameFromHeaders, SAML_LOGIN_PATH, SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 import { logAuthGuardCookies, resolveGuardedPortalUser } from "@/lib/auth-guard";
 import { cookies, headers } from "next/headers";
@@ -28,7 +28,7 @@ export default async function MyPage() {
             カオナビ・TOKIUM・クラウドハウス労務・全社ポータルから届いた、自分宛ての通知履歴です。
           </p>
         </div>
-        <NotificationList portalUserId={user.portalUserId} />
+        <MypageInbox portalUserId={user.portalUserId} />
       </main>
     </div>
   );

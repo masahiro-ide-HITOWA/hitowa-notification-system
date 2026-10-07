@@ -12,11 +12,14 @@ export interface FetchEmailsJobError {
 
 export interface FetchEmailsJobResult {
   success: boolean;
+  connection: "ok" | "failed";
+  unreadCount: number | null;
   fetched: number;
   parsed: number;
   ingested: number;
   unseenCount: number | null;
   seenCount: number | null;
+  message: string;
   notifications: ParsedEmailNotification[];
   errors: FetchEmailsJobError[];
 }
@@ -53,46 +56,62 @@ export async function runFetchEmailsJob(
     }
   }
 
+  const parsed = report.notifications.length;
   return {
     success: errors.length === 0,
+    connection: "ok",
+    unreadCount: report.unreadFetched ?? report.unseenCount,
     fetched: report.fetched,
-    parsed: report.notifications.length,
+    parsed,
     ingested,
     unseenCount: report.unseenCount,
     seenCount: report.seenCount,
+    message:
+      errors.length === 0
+        ? `IMAP接続に成功しました。未読 ${report.unreadFetched ?? report.unseenCount ?? 0} 通、取り込み ${ingested} 件です。`
+        : `IMAP接続には成功しましたが、${errors.length} 件の取得・取り込みエラーがあります。`,
     notifications: report.notifications,
+    errors,
+  };
+}
+
+function failedJobBody(message: string, errors: FetchEmailsJobError[]): FetchEmailsJobResult {
+  return {
+    success: false,
+    connection: "failed",
+    unreadCount: null,
+    fetched: 0,
+    parsed: 0,
+    ingested: 0,
+    unseenCount: null,
+    seenCount: null,
+    message,
+    notifications: [],
     errors,
   };
 }
 
 export function fetchEmailsJobErrorResponse(error: unknown): {
   status: number;
-  body: { success: false; message: string; errors: FetchEmailsJobError[] };
+  body: FetchEmailsJobResult;
 } {
   if (isMailImapError(error)) {
     const status = error.code === "CONFIG_MISSING" ? 404 : 502;
+    const message = error.detail ? `${error.message} (${error.detail})` : error.message;
     return {
       status,
-      body: {
-        success: false,
-        message: error.message,
-        errors: [{ message: error.message, detail: error.detail ?? error.code }],
-      },
+      body: failedJobBody(message, [{ message: error.message, detail: error.detail ?? error.code }]),
     };
   }
   if (error instanceof MailCredentialsError) {
     return {
       status: 404,
-      body: {
-        success: false,
-        message: error.message,
-        errors: [{ message: error.message, detail: error.detail }],
-      },
+      body: failedJobBody(error.message, [{ message: error.message, detail: error.detail }]),
     };
   }
   const message = error instanceof Error ? error.message : "メール受信ジョブに失敗しました";
   return {
     status: 500,
-    body: { success: false, message, errors: [{ message }] },
+    body: failedJobBody(message, [{ message }]),
   };
 }
