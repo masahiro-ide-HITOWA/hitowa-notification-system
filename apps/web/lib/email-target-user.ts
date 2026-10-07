@@ -1,5 +1,7 @@
 const HITOWA_EMAIL_PATTERN = /[A-Z0-9._%+-]+@(?:gr\.)?hitowa\.com/gi;
 const FORWARD_SUBJECT_PATTERN = /^(?:fwd:|fw:|転送[:：])\s*/i;
+const REPLY_FORWARD_SUBJECT_PATTERN =
+  /^(?:(?:re|fwd|fw|reply)\s*[:：]|転送\s*[:：]|返信\s*[:：])\s*/i;
 export const DEFAULT_SHARED_NOTIFICATION_INBOX = "my-notification@hitowa.com";
 
 export function sharedNotificationInbox(env: NodeJS.ProcessEnv = process.env): string {
@@ -64,8 +66,8 @@ export function isForwardedSubject(subject: string): boolean {
 
 export function stripForwardPrefixes(subject: string): string {
   let current = subject.trim();
-  for (let i = 0; i < 3; i += 1) {
-    const stripped = current.replace(FORWARD_SUBJECT_PATTERN, "").trim();
+  for (let i = 0; i < 6; i += 1) {
+    const stripped = current.replace(REPLY_FORWARD_SUBJECT_PATTERN, "").trim();
     if (stripped === current) {
       break;
     }

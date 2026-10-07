@@ -1,30 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { docClient } from "../apps/web/lib/dynamodb";
-import { ingestParsedEmailNotification } from "../apps/web/lib/email-ingest";
-import { runFetchEmailsJob } from "../apps/web/lib/email-fetch-job";
 import {
   clearNotificationSystemRuleCache,
   loadNotificationSystemRules,
-  notificationSystemTableName,
 } from "../apps/web/lib/notification-system-cache";
 import {
-  BUILTIN_NOTIFICATION_SYSTEM_RULES,
   matchNotificationSystem,
   parseNotificationSystemRules,
   type NotificationSystemRule,
 } from "../apps/web/lib/notification-system-rule";
 
-const sendLinePushIfLinked = vi.fn();
-const fetchSaasInboxReport = vi.fn();
+const kaonaviRule: NotificationSystemRule = {
+  systemName: "カオナビ",
+  fromAddresses: ["noreply@kaonavi.jp"],
+  subjectPrefixes: ["【カオナビ】"],
+  enabled: true,
+};
 
-vi.mock("@/lib/line-push", () => ({
-  sendLinePushIfLinked: (...args: unknown[]) => sendLinePushIfLinked(...args),
-}));
-
-vi.mock("@/lib/email-fetcher", () => ({
-  fetchSaasInboxReport: (...args: unknown[]) => fetchSaasInboxReport(...args),
-}));
+const tokiumRules: NotificationSystemRule[] = [
+  {
+    systemName: "TOKIUM",
+    fromAddresses: ["noreply@tokium.jp"],
+    subjectPrefixes: ["【TOKIUM経費精算】"],
+    enabled: true,
+  },
+  {
+    systemName: "TOKIUM",
+    fromAddresses: ["noreply-invoice@tokium.jp"],
+    subjectPrefixes: ["【TOKIUMインボイス】"],
+    enabled: true,
+  },
+];
 
 const kaonaviMail = {
   systemName: "カオナビ",
@@ -47,47 +53,70 @@ const googleMail = {
 describe("notification system rules", () => {
   beforeEach(() => {
     clearNotificationSystemRuleCache();
-    sendLinePushIfLinked.mockReset();
   });
 
-  it("matches built-in systems and skips mail outside the rules", () => {
-    expect(matchNotificationSystem(BUILTIN_NOTIFICATION_SYSTEM_RULES, kaonaviMail)?.systemName).toBe(
-      "カオナビ"
-    );
-    expect(matchNotificationSystem(BUILTIN_NOTIFICATION_SYSTEM_RULES, googleMail)).toBeNull();
+  it("requires both the sender address and the subject prefix on the same row", () => {
+    expect(matchNotificationSystem([kaonaviRule], kaonaviMail)?.systemName).toBe("カオナビ");
+    expect(matchNotificationSystem([kaonaviRule], googleMail)).toBeNull();
+    expect(
+      matchNotificationSystem([kaonaviRule], { ...kaonaviMail, from: "other@kaonavi.jp" })
+    ).toBeNull();
+    expect(
+      matchNotificationSystem([kaonaviRule], { ...kaonaviMail, subject: "評価シートのお願い" })
+    ).toBeNull();
+    expect(
+      matchNotificationSystem([kaonaviRule], {
+        ...googleMail,
+        body: "問い合わせは noreply@kaonavi.jp です。件名は【カオナビ】評価",
+        subject: "【カオナビ】評価",
+      })
+    ).toBeNull();
   });
 
-  it("ignores disabled rules and empty keyword lists", () => {
-    const disabled: NotificationSystemRule = {
-      ...BUILTIN_NOTIFICATION_SYSTEM_RULES[0],
-      enabled: false,
+  it("matches a forwarded sender and a subject after Re: or Fwd:", () => {
+    const forwarded = {
+      from: "mei-sei@hitowa.com",
+      subject: "Re: Fwd: 【TOKIUM経費精算】申請が届きました",
+      body: [
+        "---------- Forwarded message ---------",
+        "From: TOKIUM <noreply@tokium.jp>",
+        "To: mei-sei@hitowa.com",
+        "",
+        "申請をご確認ください。",
+      ].join("\n"),
     };
-    const empty: NotificationSystemRule = {
-      systemName: "空",
-      fromDomains: [],
-      subjectKeywords: [""],
-      bodyKeywords: [],
-      enabled: true,
-    };
-    expect(matchNotificationSystem([disabled, empty], kaonaviMail)).toBeNull();
+    expect(matchNotificationSystem(tokiumRules, forwarded)?.subjectPrefixes).toEqual([
+      "【TOKIUM経費精算】",
+    ]);
+    expect(
+      matchNotificationSystem(tokiumRules, {
+        from: "noreply-invoice@tokium.jp",
+        subject: "【TOKIUMインボイス】承認依頼",
+      })?.subjectPrefixes
+    ).toEqual(["【TOKIUMインボイス】"]);
   });
 
-  it("parses DynamoDB items including comma-separated keywords", () => {
+  it("ignores disabled rules and rows that omit an address or a prefix", () => {
+    const disabled: NotificationSystemRule = { ...kaonaviRule, enabled: false };
+    const addressOnly: NotificationSystemRule = { ...kaonaviRule, subjectPrefixes: [] };
+    expect(matchNotificationSystem([disabled, addressOnly], kaonaviMail)).toBeNull();
+  });
+
+  it("parses sender addresses and subject prefixes from DynamoDB", () => {
     const rules = parseNotificationSystemRules([
       {
-        systemName: " 新システム ",
-        fromDomains: "example.com, alerts.example.com",
-        subjectKeywords: ["申請"],
+        systemName: " TOKIUM ",
+        fromAddresses: "noreply@tokium.jp, alert@tokium.jp",
+        subjectPrefix: "【TOKIUM経費精算】",
         enabled: "false",
       },
-      { fromDomains: ["ignored.example"] },
+      { fromAddresses: ["noreply@tokium.jp"] },
     ]);
     expect(rules).toEqual([
       {
-        systemName: "新システム",
-        fromDomains: ["example.com", "alerts.example.com"],
-        subjectKeywords: ["申請"],
-        bodyKeywords: [],
+        systemName: "TOKIUM",
+        fromAddresses: ["noreply@tokium.jp", "alert@tokium.jp"],
+        subjectPrefixes: ["【TOKIUM経費精算】"],
         enabled: false,
       },
     ]);
@@ -97,9 +126,8 @@ describe("notification system rules", () => {
     const load = vi.fn(async () => [
       {
         systemName: "カオナビ",
-        fromDomains: ["kaonavi.jp"],
-        subjectKeywords: [],
-        bodyKeywords: [],
+        fromAddresses: ["noreply@kaonavi.jp"],
+        subjectPrefixes: ["【カオナビ】"],
         enabled: true,
       },
     ]);
@@ -112,100 +140,13 @@ describe("notification system rules", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back to built-in rules when the table is empty or unavailable", async () => {
+  it("matches nothing when the table is empty or unavailable", async () => {
     const empty = vi.fn(async () => []);
-    await expect(loadNotificationSystemRules(1_000, empty)).resolves.toBe(BUILTIN_NOTIFICATION_SYSTEM_RULES);
+    await expect(loadNotificationSystemRules(1_000, empty)).resolves.toEqual([]);
     clearNotificationSystemRuleCache();
     const failing = vi.fn(async () => {
       throw new Error("ResourceNotFoundException");
     });
-    await expect(loadNotificationSystemRules(2_000, failing)).resolves.toBe(BUILTIN_NOTIFICATION_SYSTEM_RULES);
-  });
-
-  it("does not save or push LINE for mail that matches no rule", async () => {
-    const send = vi.spyOn(docClient, "send").mockResolvedValue({} as never);
-    const result = await ingestParsedEmailNotification(googleMail, BUILTIN_NOTIFICATION_SYSTEM_RULES);
-    expect(result).toMatchObject({ ok: false, skipped: true });
-    expect(send).not.toHaveBeenCalled();
-    expect(sendLinePushIfLinked).not.toHaveBeenCalled();
-    send.mockRestore();
-  });
-
-  it("saves a matching mail and sends LINE only after the save", async () => {
-    const order: string[] = [];
-    const send = vi.spyOn(docClient, "send").mockImplementation(async (command) => {
-      order.push(command.constructor.name);
-      if (command.constructor.name === "ScanCommand") {
-        return {
-          Items: [
-            {
-              portalUserId: "00400611",
-              status: "COMPLETED",
-              attributes: { email: "mei-sei@hitowa.com" },
-            },
-          ],
-        } as never;
-      }
-      return {} as never;
-    });
-    sendLinePushIfLinked.mockImplementation(async () => {
-      order.push("line");
-      return { pushed: true };
-    });
-    const result = await ingestParsedEmailNotification(kaonaviMail, BUILTIN_NOTIFICATION_SYSTEM_RULES);
-    expect(result.ok).toBe(true);
-    expect(order).toEqual(["ScanCommand", "PutCommand", "line"]);
-    send.mockRestore();
-  });
-
-  it("reads notification rules once per fetch batch and skips unmatched mail", async () => {
-    fetchSaasInboxReport.mockResolvedValue({
-      mailboxExists: 1,
-      unseenCount: 1,
-      seenCount: 0,
-      unreadFetched: 1,
-      fetched: 1,
-      notifications: [googleMail, kaonaviMail],
-      parseErrors: [],
-    });
-    const send = vi.spyOn(docClient, "send").mockImplementation(async (command) => {
-      const input = (command as { input?: { TableName?: string } }).input;
-      if (input?.TableName === notificationSystemTableName()) {
-        return {
-          Items: [
-            {
-              systemName: "カオナビ",
-              fromDomains: ["kaonavi.jp"],
-              subjectKeywords: ["カオナビ"],
-              enabled: true,
-            },
-          ],
-        } as never;
-      }
-      if (command.constructor.name === "ScanCommand") {
-        return {
-          Items: [
-            {
-              portalUserId: "00400611",
-              status: "COMPLETED",
-              attributes: { email: "mei-sei@hitowa.com" },
-            },
-          ],
-        } as never;
-      }
-      return {} as never;
-    });
-    sendLinePushIfLinked.mockResolvedValue({ pushed: true });
-    const result = await runFetchEmailsJob();
-    const systemScans = send.mock.calls.filter((call) => {
-      const input = (call[0] as { input?: { TableName?: string } }).input;
-      return input?.TableName === notificationSystemTableName();
-    });
-    expect(systemScans).toHaveLength(1);
-    expect(result.skipped).toBe(1);
-    expect(result.ingested).toBe(1);
-    expect(result.success).toBe(true);
-    expect(sendLinePushIfLinked).toHaveBeenCalledTimes(1);
-    send.mockRestore();
+    await expect(loadNotificationSystemRules(2_000, failing)).resolves.toEqual([]);
   });
 });

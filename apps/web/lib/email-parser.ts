@@ -1,10 +1,12 @@
 import { extractActionUrl } from "@/lib/email-action-url";
 import { extractTargetRecipientEmail, stripForwardPrefixes } from "@/lib/email-target-user";
+import { extractOriginalSender } from "@/lib/notification-system-rule";
 import type { NotificationSystemName } from "@/lib/notifications";
 
 export interface ParsedEmailNotification {
   systemName: string;
   from: string;
+  originalFrom?: string;
   subject: string;
   recipientEmail: string;
   sourceRecipient?: string;
@@ -162,12 +164,14 @@ export function parseEmailNotification(payload: unknown): ParseEmailResult {
   }
 
   const systemName = detectNotificationSystemName(from, subject, rawBody);
+  const originalFrom = extractOriginalSender(rawBody);
   const actionUrl = extractActionUrl(`${subject}\n${rawBody}`, systemName);
   return {
     ok: true,
     notification: {
       systemName,
       from,
+      ...(originalFrom ? { originalFrom } : {}),
       subject,
       recipientEmail,
       ...(headerTo && headerTo !== recipientEmail ? { sourceRecipient: headerTo } : {}),

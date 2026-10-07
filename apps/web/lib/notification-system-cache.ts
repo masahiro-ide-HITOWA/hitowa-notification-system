@@ -1,7 +1,6 @@
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "@/lib/dynamodb";
 import {
-  BUILTIN_NOTIFICATION_SYSTEM_RULES,
   parseNotificationSystemRules,
   type NotificationSystemRule,
 } from "@/lib/notification-system-rule";
@@ -39,14 +38,11 @@ export async function loadNotificationSystemRules(
   if (cache && nowMs < cache.expiresAt) {
     return cache.rules;
   }
-  let rules = BUILTIN_NOTIFICATION_SYSTEM_RULES;
+  let rules: NotificationSystemRule[] = [];
   try {
-    const loaded = await load();
-    if (loaded.length > 0) {
-      rules = loaded;
-    }
+    rules = await load();
   } catch (error) {
-    console.error("[notification-system] failed to load rules; using built-in", error);
+    console.error("[notification-system] failed to load rules; no mail will match", error);
   }
   cache = { rules, expiresAt: nowMs + notificationSystemCacheTtlMs() };
   return rules;
