@@ -243,6 +243,9 @@ describe("verifyMailConnection", () => {
     expect(options.secure).toBe(true);
     expect(tls.rejectUnauthorized).toBe(false);
     expect(tls.servername).toBe("imap.kagoya.net");
+    const starttls = buildImapVerifyOptions({ ...sampleInput, imapHost: "imap.kagoya.net", imapPort: 143 });
+    expect(starttls.secure).toBe(false);
+    expect((starttls as { requireTLS?: boolean }).requireTLS).toBe(true);
   });
 
   it("runs IMAP then SMTP verification", async () => {

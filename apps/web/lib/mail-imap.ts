@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import { imapRequireTls, imapTlsMode, withImapPortFallback } from "@/lib/imap-port-fallback";
 import { isImapSecure, type MailConfigInput } from "@/lib/mail-config";
 import { getMailConfigForConnection } from "@/lib/mail-config-store";
 import {
@@ -51,6 +52,10 @@ function defaultCreateClient(config: MailConfigInput): ImapClientLike {
     tls: { rejectUnauthorized: false, servername: config.imapHost },
     auth: { user: config.username, pass: config.password },
     logger: false,
+    ...({
+      requireTLS: imapRequireTls(config.imapPort),
+      doSTARTTLS: imapRequireTls(config.imapPort),
+    } as Record<string, unknown>),
   });
   return client as unknown as ImapClientLike;
 }
@@ -59,6 +64,47 @@ const defaultDeps: MailImapDeps = {
   loadConfig: getMailConfigForConnection,
   createClient: defaultCreateClient,
 };
+
+async function connectMailboxClient(
+  config: MailConfigInput,
+  createClient: (config: MailConfigInput) => ImapClientLike
+): Promise<ImapClientLike> {
+  return withImapPortFallback(config.imapPort, async (port) => {
+    const tlsMode = imapTlsMode(port);
+    const started = Date.now();
+    console.log("[mail-imap] IMAP connect start", {
+      host: config.imapHost,
+      port,
+      tlsMode,
+      requireTLS: imapRequireTls(port),
+    });
+    const client = createClient({ ...config, imapPort: port });
+    try {
+      await client.connect();
+      console.log("[mail-imap] IMAP connect ok", {
+        host: config.imapHost,
+        port,
+        tlsMode,
+        elapsedMs: Date.now() - started,
+      });
+      return client;
+    } catch (error) {
+      console.error("[mail-imap] IMAP connect failed", {
+        host: config.imapHost,
+        port,
+        tlsMode,
+        elapsedMs: Date.now() - started,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        await client.logout();
+      } catch {
+        // the failed socket may already be closed
+      }
+      throw error;
+    }
+  });
+}
 
 async function withMailbox<T>(
   portalUserId: string,
@@ -71,11 +117,9 @@ async function withMailbox<T>(
     throw new MailImapError("CONFIG_MISSING", CONFIG_MISSING_MESSAGE);
   }
 
-  const client = deps.createClient(config);
-  let connected = false;
+  const client = await connectMailboxClient(config, deps.createClient);
+  let connected = true;
   try {
-    await client.connect();
-    connected = true;
     const lock = await client.getMailboxLock(folder);
     try {
       return await run(client);

@@ -1,6 +1,7 @@
 import { type ImapClientLike } from "@/lib/mail-imap";
 import { latestSequenceRange, MailImapError, type MailFetchedLike } from "@/lib/mail-imap-model";
 import {
+  connectSaasClient,
   createSaasImapClient,
   isSeenFlag,
   loadFetchedMessage,
@@ -56,11 +57,9 @@ export async function fetchSaasInboxReport(
     throw new MailImapError("CONFIG_MISSING", "メール受信用の資格情報を取得できません", detail);
   }
 
-  const client = deps.createClient(credentials);
-  let connected = false;
+  let client: ImapClientLike | null = null;
   try {
-    await client.connect();
-    connected = true;
+    client = await connectSaasClient(credentials, deps.createClient);
     const lock = await client.getMailboxLock(folder);
     try {
       return await collectInboxMessages(client, limit);
@@ -81,7 +80,7 @@ export async function fetchSaasInboxReport(
     console.error("[email-fetcher] IMAP connection failed", detail);
     throw new MailImapError("CONNECTION_FAILED", `IMAP接続に失敗しました: ${message}`, detail);
   } finally {
-    if (connected) {
+    if (client) {
       try {
         await client.logout();
       } catch {
@@ -159,8 +158,7 @@ export async function markSaasInboxMessagesSeen(
     return;
   }
   const credentials = await resolved.getCredentials();
-  const client = resolved.createClient(credentials);
-  await client.connect();
+  const client = await connectSaasClient(credentials, resolved.createClient);
   try {
     const lock = await client.getMailboxLock(folder);
     try {

@@ -1,6 +1,7 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { describeImapConnectionError, maskImapSecrets } from "@/lib/email-imap-error";
+import { imapRequireTls, imapTlsMode, withImapPortFallback } from "@/lib/imap-port-fallback";
 import { isImapSecure, isSmtpSecure, type MailConfigInput } from "@/lib/mail-config";
 
 export class MailConfigVerifyError extends Error {
@@ -19,6 +20,7 @@ export const IMAP_VERIFY_TIMEOUT_MS = 20000;
 
 export function buildImapVerifyOptions(config: MailConfigInput): ConstructorParameters<typeof ImapFlow>[0] {
   const tls = { rejectUnauthorized: false, servername: config.imapHost };
+  const requireTLS = imapRequireTls(config.imapPort);
   return {
     host: config.imapHost,
     port: config.imapPort,
@@ -29,7 +31,7 @@ export function buildImapVerifyOptions(config: MailConfigInput): ConstructorPara
     tls,
     auth: { user: config.username, pass: config.password },
     logger: false,
-    ...({ tlsOptions: tls } as Record<string, unknown>),
+    ...({ tlsOptions: tls, requireTLS, doSTARTTLS: requireTLS } as Record<string, unknown>),
   } as ConstructorParameters<typeof ImapFlow>[0];
 }
 
@@ -41,12 +43,15 @@ function imapErrorCode(error: unknown): string | undefined {
   return typeof code === "string" && code !== "" ? code : undefined;
 }
 
-async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
+async function connectVerifyImap(config: MailConfigInput): Promise<void> {
   const started = Date.now();
+  const tlsMode = imapTlsMode(config.imapPort);
   console.log("[mail-config] IMAP connect start", {
     host: config.imapHost,
     port: config.imapPort,
+    tlsMode,
     secure: isImapSecure(config.imapPort),
+    requireTLS: imapRequireTls(config.imapPort),
     connectionTimeout: IMAP_VERIFY_TIMEOUT_MS,
     socketTimeout: IMAP_VERIFY_TIMEOUT_MS,
   });
@@ -56,12 +61,14 @@ async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
     console.log("[mail-config] IMAP connect ok", {
       host: config.imapHost,
       port: config.imapPort,
+      tlsMode,
       elapsedMs: Date.now() - started,
     });
   } catch (error) {
     console.error("[mail-config] IMAP connect failed", {
       host: config.imapHost,
       port: config.imapPort,
+      tlsMode,
       elapsedMs: Date.now() - started,
       timeoutMs: IMAP_VERIFY_TIMEOUT_MS,
       code: imapErrorCode(error),
@@ -75,6 +82,10 @@ async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
       // ignore logout failures after a successful or failed connect
     }
   }
+}
+
+async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
+  await withImapPortFallback(config.imapPort, (port) => connectVerifyImap({ ...config, imapPort: port }));
 }
 
 async function defaultVerifySmtp(config: MailConfigInput): Promise<void> {
