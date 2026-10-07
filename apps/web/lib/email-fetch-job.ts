@@ -1,4 +1,4 @@
-import { fetchSaasInboxReport, type EmailFetcherDeps } from "@/lib/email-fetcher";
+import { fetchSaasInboxReport, markSaasInboxMessagesSeen, type EmailFetcherDeps } from "@/lib/email-fetcher";
 import { ingestParsedEmailNotification } from "@/lib/email-ingest";
 import { loadNotificationSystemRules } from "@/lib/notification-system-cache";
 import type { NotificationSystemRule } from "@/lib/notification-system-rule";
@@ -41,12 +41,20 @@ export async function runFetchEmailsJob(
   }));
   let ingested = 0;
   let skipped = 0;
+  const seenUids: number[] = [];
 
   for (const notification of report.notifications) {
     try {
       const result = await ingestParsedEmailNotification(notification, activeRules);
-      if (result.ok) {
-        ingested += 1;
+      if (result.ok || result.duplicate) {
+        if (result.ok) {
+          ingested += 1;
+        } else {
+          skipped += 1;
+        }
+        if (typeof notification.imapUid === "number") {
+          seenUids.push(notification.imapUid);
+        }
       } else if (result.skipped) {
         skipped += 1;
       } else {
@@ -62,6 +70,10 @@ export async function runFetchEmailsJob(
         recipientEmail: notification.recipientEmail,
       });
     }
+  }
+
+  if (seenUids.length > 0) {
+    await markSaasInboxMessagesSeen(seenUids, folder, deps);
   }
 
   const parsed = report.notifications.length;

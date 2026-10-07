@@ -36,7 +36,7 @@ const USER_EMAIL_SCAN = {
 
 export type EmailIngestResult =
   | { ok: true; notificationId: string; portalUserId: string }
-  | { ok: false; status: number; message: string; table?: string; skipped?: boolean };
+  | { ok: false; status: number; message: string; table?: string; skipped?: boolean; duplicate?: boolean };
 
 async function scanUserMappings(recipientEmail?: string): Promise<unknown[]> {
   try {
@@ -123,10 +123,15 @@ export async function ingestParsedEmailNotification(
 
   const createdAt = new Date().toISOString();
   let saved: { notificationId: string; portalUserId: string } | null = null;
+  let duplicates = 0;
   for (const portalUserId of resolved.ids) {
     const notificationId = randomUUID();
     const notification = createNotificationFromEmail(target, portalUserId, notificationId, createdAt);
     try {
+      if (await hasStoredEmail(portalUserId, target)) {
+        duplicates += 1;
+        continue;
+      }
       await docClient.send(new PutCommand({ TableName: NOTIFICATION_TABLE, Item: notification }));
     } catch (error) {
       logEmailWebhookError("[email ingest] HitowaNotifications put failed", error);
@@ -154,5 +159,36 @@ export async function ingestParsedEmailNotification(
     }
   }
 
+  if (!saved && duplicates === resolved.ids.length) {
+    return { ok: false, status: 200, skipped: true, duplicate: true, message: "取り込み済みのメールのためスキップしました" };
+  }
+
   return { ok: true, notificationId: saved?.notificationId ?? "", portalUserId: saved?.portalUserId ?? resolved.ids[0] };
+}
+
+async function hasStoredEmail(portalUserId: string, parsed: ParsedEmailNotification): Promise<boolean> {
+  const messageId = parsed.messageId?.trim() ?? "";
+  const imapUid = parsed.imapUid;
+  if (messageId === "" && typeof imapUid !== "number") {
+    return false;
+  }
+  const identity: string[] = [];
+  const values: Record<string, string | number> = { ":user": portalUserId };
+  if (messageId !== "") {
+    identity.push("sourceMessageId = :messageId");
+    values[":messageId"] = messageId;
+  }
+  if (typeof imapUid === "number") {
+    identity.push("imapUid = :imapUid");
+    values[":imapUid"] = imapUid;
+  }
+  const scanned = await docClient.send(
+    new ScanCommand({
+      TableName: NOTIFICATION_TABLE,
+      FilterExpression: `portalUserId = :user AND (${identity.join(" OR ")})`,
+      ExpressionAttributeValues: values,
+      ProjectionExpression: "id",
+    })
+  );
+  return (scanned.Items?.length ?? 0) > 0;
 }

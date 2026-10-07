@@ -14,6 +14,8 @@ export interface NotificationItem {
   createdAt: string;
   actionUrl?: string;
   expiresAt?: number;
+  sourceMessageId?: string;
+  imapUid?: number;
 }
 
 export function parseNotificationsPortalUserId(
@@ -75,6 +77,12 @@ export function isNotificationItem(value: unknown): value is NotificationItem {
     return false;
   }
   if (value.expiresAt !== undefined && typeof value.expiresAt !== "number") {
+    return false;
+  }
+  if (value.sourceMessageId !== undefined && typeof value.sourceMessageId !== "string") {
+    return false;
+  }
+  if (value.imapUid !== undefined && typeof value.imapUid !== "number") {
     return false;
   }
   return true;

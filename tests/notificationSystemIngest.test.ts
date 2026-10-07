@@ -137,4 +137,34 @@ describe("notification system ingest", () => {
     expect(sendLinePushIfLinked).toHaveBeenCalledTimes(1);
     send.mockRestore();
   });
+
+  it("does not save or push LINE when the message id is already stored", async () => {
+    const send = vi.spyOn(docClient, "send").mockImplementation(async (command) => {
+      if (command.constructor.name === "PutCommand") {
+        return {} as never;
+      }
+      const values = (command as { input?: { ExpressionAttributeValues?: Record<string, string> } }).input
+        ?.ExpressionAttributeValues;
+      if (values?.[":messageId"]) {
+        return { Items: [{ id: "existing" }] } as never;
+      }
+      return {
+        Items: [
+          {
+            portalUserId: "00400611",
+            status: "COMPLETED",
+            attributes: { email: "mei-sei@hitowa.com" },
+          },
+        ],
+      } as never;
+    });
+    const result = await ingestParsedEmailNotification(
+      { ...kaonaviMail, messageId: "<kaonavi-1@example>", imapUid: 8 },
+      [kaonaviRule]
+    );
+    expect(result).toMatchObject({ ok: false, skipped: true, duplicate: true });
+    expect(sendLinePushIfLinked).not.toHaveBeenCalled();
+    expect(send.mock.calls.some((call) => call[0].constructor.name === "PutCommand")).toBe(false);
+    send.mockRestore();
+  });
 });

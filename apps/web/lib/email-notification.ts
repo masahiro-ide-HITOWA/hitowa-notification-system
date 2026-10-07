@@ -97,6 +97,8 @@ export function createNotificationFromEmail(
     createdAt,
     expiresAt: unreadNotificationExpiresAt(nowMs),
     ...(parsed.actionUrl ? { actionUrl: parsed.actionUrl } : {}),
+    ...(parsed.messageId ? { sourceMessageId: parsed.messageId } : {}),
+    ...(typeof parsed.imapUid === "number" ? { imapUid: parsed.imapUid } : {}),
   };
 }
 

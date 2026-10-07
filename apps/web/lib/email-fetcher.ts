@@ -4,6 +4,7 @@ import {
   createSaasImapClient,
   isSeenFlag,
   loadFetchedMessage,
+  markMailboxUidsSeen,
   parseFetchedSource,
   searchMailboxUids,
 } from "@/lib/email-fetcher-imap";
@@ -93,26 +94,23 @@ export async function fetchSaasInboxReport(
 async function collectInboxMessages(client: ImapClientLike, limit: number): Promise<SaasInboxFetchReport> {
   const mailboxExists = client.mailbox === false ? 0 : client.mailbox.exists;
   const unseenIds = await searchMailboxUids(client, { seen: false });
-  const seenIds = await searchMailboxUids(client, { seen: true });
-  console.log("[email-fetcher] imap search (includes SEEN / forwarded)", {
+  console.log("[email-fetcher] imap search UNSEEN only", {
     mailboxExists,
     unseenCount: unseenIds?.length ?? null,
-    seenCount: seenIds?.length ?? null,
   });
 
-  const fromSearch = [...new Set([...(unseenIds ?? []), ...(seenIds ?? [])])].sort((a, b) => a - b);
-  const uids = fromSearch.length > 0 ? fromSearch.slice(-limit) : [];
+  const uids = unseenIds ? [...unseenIds].sort((a, b) => a - b).slice(-limit) : [];
   const notifications: ParsedEmailNotification[] = [];
   const parseErrors: SaasInboxParseError[] = [];
-  const unseenSet = unseenIds ? new Set(unseenIds) : null;
   let unreadFromFlags = 0;
 
   const consume = async (message: MailFetchedLike) => {
     const seen = isSeenFlag(message.flags);
-    if (!seen) {
-      unreadFromFlags += 1;
-    }
     console.log("[email-fetcher] message flags", { uid: message.uid, seen });
+    if (seen) {
+      return;
+    }
+    unreadFromFlags += 1;
     const full = await loadFetchedMessage(client, message);
     if (!full) {
       parseErrors.push({ uid: message.uid, message: "fetchOne returned empty" });
@@ -127,7 +125,7 @@ async function collectInboxMessages(client: ImapClientLike, limit: number): Prom
     parseErrors.push({ uid: full.uid, message: parsed.message });
   };
 
-  if (uids.length > 0) {
+  if (unseenIds) {
     for (const uid of uids) {
       await consume({ uid });
     }
@@ -143,13 +141,40 @@ async function collectInboxMessages(client: ImapClientLike, limit: number): Prom
   return {
     mailboxExists,
     unseenCount: unseenIds?.length ?? null,
-    seenCount: seenIds?.length ?? null,
+    seenCount: null,
     fetched: notifications.length + parseErrors.length,
-    unreadFetched:
-      unseenSet && uids.length > 0 ? uids.filter((uid) => unseenSet.has(uid)).length : unreadFromFlags,
+    unreadFetched: unseenIds ? uids.length : unreadFromFlags,
     notifications,
     parseErrors,
   };
+}
+
+export async function markSaasInboxMessagesSeen(
+  uids: number[],
+  folder = "INBOX",
+  deps: EmailFetcherDeps = defaultDeps
+): Promise<void> {
+  const resolved = deps ?? defaultDeps;
+  if (uids.length === 0) {
+    return;
+  }
+  const credentials = await resolved.getCredentials();
+  const client = resolved.createClient(credentials);
+  await client.connect();
+  try {
+    const lock = await client.getMailboxLock(folder);
+    try {
+      await markMailboxUidsSeen(client, uids);
+    } finally {
+      lock.release();
+    }
+  } finally {
+    try {
+      await client.logout();
+    } catch {
+      // logout failure should not mask a successful flag update
+    }
+  }
 }
 
 export async function fetchSaasInboxEmails(

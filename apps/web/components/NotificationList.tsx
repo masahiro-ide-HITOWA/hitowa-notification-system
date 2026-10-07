@@ -10,6 +10,7 @@ import {
   type NotificationSaasFilter,
 } from "@/lib/notification-query";
 import type { NotificationItem } from "@/lib/notifications";
+import { decrementUnreadNotificationCount } from "@/lib/use-unread-notification-count";
 
 interface NotificationListProps {
   portalUserId: string;
@@ -85,7 +86,11 @@ export function NotificationList({ portalUserId }: NotificationListProps) {
         "success" in data &&
         data.success === true
       ) {
-        await load(filter, saasFilter, page);
+        setItems((current) =>
+          current.map((entry) => (entry.id === item.id ? { ...entry, isRead: true } : entry))
+        );
+        setUnreadCount((current) => Math.max(0, current - 1));
+        decrementUnreadNotificationCount();
       }
     } catch {
       console.error("Failed to mark notification as read");

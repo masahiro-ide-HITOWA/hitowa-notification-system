@@ -63,7 +63,10 @@ export function NotificationListItem({ item, onSelect }: NotificationListItemPro
           href={item.actionUrl}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(item);
+          }}
           className="inline-flex items-center mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
         >
           該当SaaSを開く ➔

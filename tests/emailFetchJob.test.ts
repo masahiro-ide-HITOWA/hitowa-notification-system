@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MailImapError } from "../apps/web/lib/mail-imap-model";
 
 const fetchSaasInboxReport = vi.fn();
+const markSaasInboxMessagesSeen = vi.fn();
 const ingestParsedEmailNotification = vi.fn();
 
 vi.mock("@/lib/email-fetcher", () => ({
   fetchSaasInboxReport: (...args: unknown[]) => fetchSaasInboxReport(...args),
+  markSaasInboxMessagesSeen: (...args: unknown[]) => markSaasInboxMessagesSeen(...args),
 }));
 
 vi.mock("@/lib/email-ingest", () => ({
@@ -20,6 +22,7 @@ vi.mock("@/lib/notification-system-cache", () => ({
 describe("fetch email job debug response", () => {
   beforeEach(() => {
     fetchSaasInboxReport.mockReset();
+    markSaasInboxMessagesSeen.mockReset();
     ingestParsedEmailNotification.mockReset();
   });
 
@@ -72,5 +75,29 @@ describe("fetch email job debug response", () => {
       "宛先メールに対応するユーザーが見つかりません",
     ]);
     expect(result.errors[1]?.recipientEmail).toBe("my-notification@hitowa.com");
+    expect(markSaasInboxMessagesSeen).not.toHaveBeenCalled();
+  });
+
+  it("marks IMAP messages seen only after a successful or duplicate save", async () => {
+    fetchSaasInboxReport.mockResolvedValue({
+      mailboxExists: 2,
+      unseenCount: 2,
+      seenCount: null,
+      unreadFetched: 2,
+      fetched: 2,
+      notifications: [
+        { systemName: "カオナビ", recipientEmail: "a@hitowa.com", title: "評価", body: "本文", imapUid: 4 },
+        { systemName: "TOKIUM", recipientEmail: "a@hitowa.com", title: "経費", body: "本文", imapUid: 5 },
+      ],
+      parseErrors: [],
+    });
+    ingestParsedEmailNotification
+      .mockResolvedValueOnce({ ok: true, notificationId: "n1", portalUserId: "00400611" })
+      .mockResolvedValueOnce({ ok: false, skipped: true, duplicate: true, status: 200, message: "取り込み済み" });
+    const { runFetchEmailsJob } = await import("../apps/web/lib/email-fetch-job");
+    const result = await runFetchEmailsJob();
+    expect(result.ingested).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(markSaasInboxMessagesSeen).toHaveBeenCalledWith([4, 5], "INBOX", undefined);
   });
 });

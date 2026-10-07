@@ -42,7 +42,19 @@ export function createSaasImapClient(credentials: MailCredentials): ImapClientLi
       const result = await search.call(client, query, { uid: true });
       return Array.isArray(result) ? result : [];
     },
+    messageFlagsAdd: async (range, flags, options) => {
+      await client.messageFlagsAdd(range, flags, options);
+    },
   };
+}
+
+export async function markMailboxUidsSeen(client: ImapClientLike, uids: number[]): Promise<void> {
+  if (!client.messageFlagsAdd || uids.length === 0) {
+    return;
+  }
+  for (const uid of uids) {
+    await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true });
+  }
 }
 
 export function isSeenFlag(flags: MailFetchedLike["flags"]): boolean {
@@ -78,6 +90,7 @@ export async function parseFetchedSource(
   }
   try {
     const parsed = await simpleParser(message.source);
+    const messageId = typeof parsed.messageId === "string" ? parsed.messageId.trim() : "";
     const result = parseEmailNotification(
       parsedMailToEmailPayload({
         from: { text: addressLikeToText(parsed.from) },
@@ -90,7 +103,14 @@ export async function parseFetchedSource(
     if (!result.ok) {
       return { ok: false, message: result.message };
     }
-    return { ok: true, notification: result.notification };
+    return {
+      ok: true,
+      notification: {
+        ...result.notification,
+        imapUid: message.uid,
+        ...(messageId !== "" ? { messageId } : {}),
+      },
+    };
   } catch (error) {
     const messageText = error instanceof Error ? error.message : "parse failed";
     return { ok: false, message: messageText };

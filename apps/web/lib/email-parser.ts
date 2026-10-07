@@ -13,6 +13,8 @@ export interface ParsedEmailNotification {
   title: string;
   body: string;
   actionUrl?: string;
+  messageId?: string;
+  imapUid?: number;
 }
 
 export type ParseEmailResult =

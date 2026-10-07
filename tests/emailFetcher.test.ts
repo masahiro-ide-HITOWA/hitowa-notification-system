@@ -108,21 +108,41 @@ describe("fetchSaasInboxEmails", () => {
     expect(detail).toContain("********");
   });
 
-  it("fetches SEEN messages when IMAP search is available", async () => {
+  it("fetches UNSEEN messages only and ignores an empty unseen result", async () => {
     const raw = Buffer.from(
-      "From: alert@tokium.jp\r\nTo: saas-inbox@kagoya.jp\r\nSubject: 転送: 【TOKIUM】承認依頼\r\n\r\n社員番号: 00400611 の申請です"
+      "From: alert@tokium.jp\r\nTo: saas-inbox@kagoya.jp\r\nSubject: 転送: 【TOKIUM】承認依頼\r\nMessage-ID: <tokium-1@example>\r\n\r\n社員番号: 00400611 の申請です"
     );
+    const fetchedRanges: string[] = [];
     const notifications = await fetchSaasInboxEmails("INBOX", 20, {
       getCredentials: async () => credentials,
       createClient: () => ({
         ...mockClient(new Map([[7, raw]])),
         mailbox: { exists: 7 },
-        search: async (query) => (query.seen ? [7] : []),
+        fetch: async function* (range: string) {
+          fetchedRanges.push(range);
+        },
+        search: async (query: { seen?: boolean }) => (query.seen === false ? [7] : [3]),
       }),
     });
+    expect(fetchedRanges).toEqual([]);
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]?.systemName).toBe("TOKIUM");
+    expect(notifications[0]?.imapUid).toBe(7);
+    expect(notifications[0]?.messageId).toBe("<tokium-1@example>");
     expect(notifications[0]?.recipientEmail).toBe("saas-inbox@kagoya.jp");
+
+    const skipped = await fetchSaasInboxEmails("INBOX", 20, {
+      getCredentials: async () => credentials,
+      createClient: () => ({
+        ...mockClient(new Map([[7, raw]])),
+        mailbox: { exists: 7 },
+        fetch: async function* (range: string) {
+          fetchedRanges.push(range);
+        },
+        search: async () => [],
+      }),
+    });
+    expect(skipped).toEqual([]);
+    expect(fetchedRanges).toEqual([]);
   });
   it("throws CONFIG_MISSING when credentials cannot be loaded", async () => {
     await expect(
