@@ -15,17 +15,59 @@ export interface MailConfigVerifyDeps {
   verifySmtp: (config: MailConfigInput) => Promise<void>;
 }
 
-async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
-  const client = new ImapFlow({
+export const IMAP_VERIFY_TIMEOUT_MS = 20000;
+
+export function buildImapVerifyOptions(config: MailConfigInput): ConstructorParameters<typeof ImapFlow>[0] {
+  const tls = { rejectUnauthorized: false, servername: config.imapHost };
+  return {
     host: config.imapHost,
     port: config.imapPort,
     secure: isImapSecure(config.imapPort),
-    connectionTimeout: 15000,
+    connectionTimeout: IMAP_VERIFY_TIMEOUT_MS,
+    socketTimeout: IMAP_VERIFY_TIMEOUT_MS,
+    greetingTimeout: IMAP_VERIFY_TIMEOUT_MS,
+    tls,
     auth: { user: config.username, pass: config.password },
     logger: false,
+    ...({ tlsOptions: tls } as Record<string, unknown>),
+  } as ConstructorParameters<typeof ImapFlow>[0];
+}
+
+function imapErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+  const code = error.code;
+  return typeof code === "string" && code !== "" ? code : undefined;
+}
+
+async function defaultVerifyImap(config: MailConfigInput): Promise<void> {
+  const started = Date.now();
+  console.log("[mail-config] IMAP connect start", {
+    host: config.imapHost,
+    port: config.imapPort,
+    secure: isImapSecure(config.imapPort),
+    connectionTimeout: IMAP_VERIFY_TIMEOUT_MS,
+    socketTimeout: IMAP_VERIFY_TIMEOUT_MS,
   });
+  const client = new ImapFlow(buildImapVerifyOptions(config));
   try {
     await client.connect();
+    console.log("[mail-config] IMAP connect ok", {
+      host: config.imapHost,
+      port: config.imapPort,
+      elapsedMs: Date.now() - started,
+    });
+  } catch (error) {
+    console.error("[mail-config] IMAP connect failed", {
+      host: config.imapHost,
+      port: config.imapPort,
+      elapsedMs: Date.now() - started,
+      timeoutMs: IMAP_VERIFY_TIMEOUT_MS,
+      code: imapErrorCode(error),
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   } finally {
     try {
       await client.logout();

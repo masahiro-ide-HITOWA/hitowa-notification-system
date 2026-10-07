@@ -45,7 +45,10 @@ function defaultCreateClient(config: MailConfigInput): ImapClientLike {
     host: config.imapHost,
     port: config.imapPort,
     secure: isImapSecure(config.imapPort),
-    connectionTimeout: 30000,
+    connectionTimeout: 20000,
+    socketTimeout: 20000,
+    greetingTimeout: 20000,
+    tls: { rejectUnauthorized: false, servername: config.imapHost },
     auth: { user: config.username, pass: config.password },
     logger: false,
   });

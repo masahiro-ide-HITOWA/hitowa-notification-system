@@ -14,7 +14,12 @@ import {
 } from "../apps/web/lib/mail-config";
 import { decryptPassword } from "../apps/web/lib/mail-crypto";
 import { getMailConfig, getMailConfigForConnection, resolveMailConfigPlaintext, saveMailConfig } from "../apps/web/lib/mail-config-store";
-import { MailConfigVerifyError, verifyMailConnection } from "../apps/web/lib/mail-config-verify";
+import {
+  buildImapVerifyOptions,
+  IMAP_VERIFY_TIMEOUT_MS,
+  MailConfigVerifyError,
+  verifyMailConnection,
+} from "../apps/web/lib/mail-config-verify";
 import type { MailConfigStoreDeps } from "../apps/web/lib/mail-config-store";
 
 function memoryStore(): MailConfigStoreDeps & { items: Map<string, Record<string, unknown>> } {
@@ -225,6 +230,21 @@ describe("IMAP/SMTP secure flags", () => {
 });
 
 describe("verifyMailConnection", () => {
+  it("waits 20 seconds and disables strict TLS verification for KAGOYA IMAP", () => {
+    const options = buildImapVerifyOptions({
+      ...sampleInput,
+      imapHost: "imap.kagoya.net",
+      imapPort: 993,
+    });
+    const tls = options.tls as { rejectUnauthorized?: boolean; servername?: string };
+    expect(IMAP_VERIFY_TIMEOUT_MS).toBe(20000);
+    expect(options.connectionTimeout).toBe(20000);
+    expect(options.socketTimeout).toBe(20000);
+    expect(options.secure).toBe(true);
+    expect(tls.rejectUnauthorized).toBe(false);
+    expect(tls.servername).toBe("imap.kagoya.net");
+  });
+
   it("runs IMAP then SMTP verification", async () => {
     const calls: string[] = [];
     await verifyMailConnection(sampleInput, {

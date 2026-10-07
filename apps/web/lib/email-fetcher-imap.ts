@@ -15,11 +15,11 @@ export function createSaasImapClient(credentials: MailCredentials): ImapClientLi
     connectionTimeout: 30000,
     greetingTimeout: 20000,
     socketTimeout: 30000,
-    tls: { rejectUnauthorized: false },
+    tls: { rejectUnauthorized: false, servername: config.imapHost },
     logger: false,
     auth: { user: config.username, pass: config.password },
     ...({
-      tlsOptions: { rejectUnauthorized: false },
+      tlsOptions: { rejectUnauthorized: false, servername: config.imapHost },
       authTimeout: 20000,
     } as Record<string, unknown>),
   } as ConstructorParameters<typeof ImapFlow>[0]);

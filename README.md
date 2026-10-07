@@ -7,6 +7,7 @@
   * メール受信・パース・通知登録・LINE 配信パイプライン構築完了・本番稼働成功。
   * SAML 2.0 (検証用 IdP) 認証連携およびミドルウェアによる未ログインガードの実装完了。
   * トップ (`/`) へのアクセスはマイ通知 (`/mypage`) へダイレクト転送。マイ通知画面に既読・SaaS の 2 系統フィルターを搭載。
+  * 通知対象システムは DynamoDB `HitowaNotificationSystems` で動的管理。デプロイなしで追加・変更できる。
 
 ---
 
@@ -49,7 +50,10 @@ hitowa-notification-system/
 │       │   ├── saml-profile.ts             # SAML アトリビュートマッピング
 │       │   ├── saml.ts                     # SAML クライアント (import "server-only")
 │       │   ├── secrets.ts                  # Secrets Manager (ap-northeast-1)
-│       │   └── email-fetcher.ts            # IMAP受信・メールパース・ユーザー紐付けロジック
+│       │   ├── email-fetcher.ts            # IMAP 未読取得。保存成功後に SEEN 化
+│       │   ├── email-ingest.ts             # 判定一致メールの保存と LINE 送信
+│       │   ├── notification-system-rule.ts # 送信元・件名の一致判定
+│       │   └── notification-system-cache.ts# 判定条件のインメモリキャッシュ
 │       └── middleware.ts                   # 未ログイン保護ガード (USE_MOCK_AUTH=false 時)
 ├── packages/                               # ドメインロジック・共通パッケージ
 └── tests/                                  # Vitest 単体・統合テスト群
@@ -68,6 +72,8 @@ hitowa-notification-system/
 | `SAML_ENTRY_POINT` | `https://<idp-domain>/saml/sso` | IdP SSO URL |
 | `SAML_IDP_ISSUER` | `https://<idp-domain>` | IdP Entity ID |
 | `SAML_CERT` | `"MIIDXTCC..."` | IdP X.509 証明書文字列 |
+| `DYNAMODB_NOTIFICATION_SYSTEM_TABLE` | `"HitowaNotificationSystems"` | 通知対象システムの判定条件テーブル。未設定時はこの名前 |
+| `NOTIFICATION_SYSTEM_CACHE_TTL_MS` | `300000` | 判定条件のインメモリキャッシュ有効期限。未設定時は 5 分 |
 
 ---
 
@@ -81,6 +87,8 @@ hitowa-notification-system/
    * Webメールリンク ➔ `/mail` (未設定時は `/settings/mail`)
 2. **マイ通知 (`/mypage`)**:
    * 「すべて / 未読 / 既読」×「すべて / カオナビ / TOKIUM / クラウドハウス」の 2 系統フィルターを搭載。
+   * 「今すぐ同期」で `/api/cron/fetch-emails` を実行し、接続状態・未読数・取り込み件数・対象外件数・エラー詳細をその場に表示する。
+   * 通知カードの既読化では一覧を再読込しない。スクロール位置を維持し、ヘッダーの未読バッジを同時に 1 件減らす。`/notifications` の一覧も同じ既読更新を使う。
 3. **認証 & ミドルウェア (`middleware.ts`)**:
    * `USE_MOCK_AUTH=false` かつ未ログインの場合、保護対象ルートへのアクセスを自動で `/api/auth/saml/login` へ転送。
    * SAML エンドポイント、Cron API、Webhook、静的ファイルは除外。
@@ -89,11 +97,32 @@ hitowa-notification-system/
 
 ---
 
-## 5. メール受信・パース処理 (`/api/cron/fetch-emails`)
+## 5. 通知対象システムの動的管理 (`HitowaNotificationSystems`)
+
+判定条件は DynamoDB テーブル `HitowaNotificationSystems` に置く。行の追加・変更・停止にアプリケーションのデプロイは不要。1 行が 1 種類の通知（例: TOKIUM 経費精算と TOKIUM インボイスは別行）。
+
+| 属性 | 内容 |
+| :--- | :--- |
+| `systemName` | マイ通知と LINE に出すシステム名 |
+| `fromAddresses` | 送信元メールアドレス。完全一致。複数可 |
+| `subjectPrefixes` | 件名の先頭文字列。複数可。空なら件名では絞らない |
+| `enabled` | `false` の行は使わない |
+
+`/api/cron/fetch-emails` はバッチ開始時にこのテーブルを 1 回読み、メモリにキャッシュする。有効期限は `NOTIFICATION_SYSTEM_CACHE_TTL_MS`（既定 5 分）。同じプロセス内の次の実行は、期限まで DynamoDB を読み直さない。テーブルが空、または読めない場合は判定行が無いものとして、メールは保存も LINE 送信もしない。
+
+## 6. メール取り込み・判定 (`/api/cron/fetch-emails`)
 
 * **Secrets Manager**: `hitowa/notification-portal/saas-mail-credentials` から IMAP 接続資格情報を取得（8分キャッシュ）。
 * **IMAP 接続**: SSL/TLS (ポート `993`) 接続。タイムアウトおよび `tlsOptions.rejectUnauthorized: false` 構成。
-* **パースロジック**: `Fwd:` 等の転送メール本文から宛先（例: `masahiro-ide@hitowa.com`）や社員番号（`00400611`）を自動抽出し、対象ユーザーへ通知を紐付けて DB 登録 ＋ LINE 即時 Push 送信。
+* **取得範囲**: IMAP の未読（`UNSEEN`）だけを検索・取得する。既読メールは取得しない。
+* **送信元**: メールの `From` が登録アドレスと完全一致すれば一致とする。Gmail 転送で `From` が個人アドレスになっている場合は、本文先頭の転送ブロックにある `From:` または `差出人:` を元の送信元として判定する。本文の途中にアドレスが書かれているだけでは一致にしない。直接 `my-notification@hitowa.com` へ届くメールは `From` を使う。
+* **件名**: 比較前に先頭の `Re:`、`Fw:`、`Fwd:`、`転送:`、`返信:` を外す。`subjectPrefixes` に文字列がある行は、そのいずれかで件名が始まっている必要がある。
+* **件名フィルタの省略**: `subjectPrefixes` が未定義、空配列 `[]`、空文字、または `[""]` のときは件名を見ない。`fromAddresses` が一致すれば対象にする（カオナビのように件名が一定しないシステム向け）。
+* **両条件**: 件名条件がある行は、同じ行の送信元アドレスと件名先頭の両方が一致したメールだけを対象にする。
+* **ノイズ**: どの有効行にも一致しないメール（Google のセキュリティ通知など）は、マイ通知への保存も LINE 送信もしない。
+* **保存と LINE**: 一致したメールだけ DynamoDB のマイ通知へ保存する。LINE はその保存に成功したメールだけ送る。
+* **重複防止**: 保存に成功したメール、および Message-ID または UID が同じユーザーの通知として既にあるメールは、IMAP 上で既読（`SEEN`）にする。次回の同期で取り直さず、LINE も再送しない。対象外の未定義メールは既読化しない。
+* **宛先**: 共有受信箱 `my-notification@hitowa.com` 宛ては、転送本文や Cc から本来の `@hitowa.com` 宛先を特定してマイ通知へ紐付ける。
 
 ---
 
