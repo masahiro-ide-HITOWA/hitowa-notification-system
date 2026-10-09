@@ -87,16 +87,32 @@ export default function Header() {
   const unreadCount = useUnreadNotificationCount(user?.portalUserId ?? "");
   const unreadBadge = formatUnreadBadge(unreadCount);
 
+  // 環境変数からポータルURLを取得（未設定時はデフォルトの本番ポータルURL）
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_ORIGIN || "https://portal.hitowa.com";
+
   return (
     <header className="bg-slate-900 text-white p-3 sticky top-0 z-40 shadow-md">
       <div className="max-w-4xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2 font-bold text-indigo-400">
-          <span className="text-lg">🔔</span>
-          <Link href="/mypage" className="hover:text-indigo-300 transition">
-            <span className="hidden sm:inline">HITOWA統合通知ポータル</span>
-            <span className="sm:hidden text-sm">HITOWAポータル</span>
-          </Link>
+        <div className="flex items-center gap-3">
+          {/* HITOWAポータルへ戻るリンク */}
+          <a
+            href={portalUrl}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 hover:text-white transition"
+            title="HITOWAポータルへ戻る"
+          >
+            <span className="text-sm">←</span>
+            <span>ポータルへ</span>
+          </a>
+
+          <div className="flex items-center gap-2 font-bold text-indigo-400">
+            <span className="text-lg">🔔</span>
+            <Link href="/mypage" className="hover:text-indigo-300 transition">
+              <span className="hidden sm:inline">HITOWA統合通知ポータル</span>
+              <span className="sm:hidden text-sm">統合通知</span>
+            </Link>
+          </div>
         </div>
+
         <nav className="flex items-center gap-2 text-xs">
           {authMode === "saml" && !user ? (
             <Link href="/api/auth/saml/login" className={navClass(false)}>
