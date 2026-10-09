@@ -30,10 +30,6 @@ export function lineReplyResponseHeaders(result: LineReplyResult): Record<string
 
 export async function replyLineText(replyToken: string, text: string): Promise<LineReplyResult> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim() ?? "";
-  console.log("[line-webhook] LINE_CHANNEL_ACCESS_TOKEN", {
-    hasAccessToken: token !== "",
-    tokenLength: token.length,
-  });
   if (token === "") {
     const errorMessage = "LINE_CHANNEL_ACCESS_TOKEN is missing; skip Reply API";
     console.error("[line-webhook]", errorMessage);

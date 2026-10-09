@@ -16,6 +16,7 @@ const PUBLIC_PREFIXES = [
   "/api/webhook",
   "/api/webhooks",
   "/api/cron",
+  "/api/notifications/unread-count",
 ];
 
 export function isPublicAuthPath(pathname: string): boolean {
@@ -61,12 +62,6 @@ export const PAGE_NO_CACHE_HEADERS = {
 
 export function samlLoginRedirectUrl(origin: string): string {
   return new URL(SAML_LOGIN_PATH, origin).toString();
-}
-
-export function logAuthGuardCookies(
-  cookieList: ReadonlyArray<{ name: string; value: string }>
-): void {
-  console.log("[AUTH GUARD CHECK]", cookieList);
 }
 
 export function hasSessionCookie(

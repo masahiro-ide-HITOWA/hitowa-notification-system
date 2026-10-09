@@ -76,17 +76,10 @@ export async function POST(request: Request) {
       expiresAt,
       lineAddFriendUrl: "https://line.me/R/ti/p/" + (process.env.LINE_BOT_BASIC_ID || ""),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error issuing code:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: "コードの発行に失敗しました",
-        debugMessage: error?.message || String(error),
-        debugName: error?.name,
-        debugCode: error?.$metadata?.httpStatusCode,
-        debugStack: error?.stack,
-      },
+      { success: false, error: "コードの発行に失敗しました" },
       { status: 500 }
     );
   }

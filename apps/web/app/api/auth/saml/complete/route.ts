@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-mode";
-import { verifySessionToken } from "@/lib/auth-session";
+import { sessionCookieOptions, verifySessionToken } from "@/lib/auth-session";
 
 const MYPAGE_NAVIGATION_HTML = `<!DOCTYPE html>
 <html>
@@ -14,15 +14,8 @@ const MYPAGE_NAVIGATION_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-const SESSION_COOKIE = {
-  path: "/",
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax" as const,
-  maxAge: 60 * 60 * 24 * 7,
-};
-
-async function sessionNavigationResponse(sessionToken: string): Promise<NextResponse> {
+async function sessionNavigationResponse(request: Request, sessionToken: string): Promise<NextResponse> {
+  const cookie = sessionCookieOptions(request);
   const response = new NextResponse(MYPAGE_NAVIGATION_HTML, {
     status: 200,
     headers: {
@@ -33,7 +26,7 @@ async function sessionNavigationResponse(sessionToken: string): Promise<NextResp
 
   try {
     const jar = await cookies();
-    jar.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE);
+    jar.set(SESSION_COOKIE_NAME, sessionToken, cookie);
   } catch {
     // Route-handler unit tests have no Next.js cookie store.
   }
@@ -41,7 +34,7 @@ async function sessionNavigationResponse(sessionToken: string): Promise<NextResp
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: sessionToken,
-    ...SESSION_COOKIE,
+    ...cookie,
   });
   return response;
 }
@@ -55,5 +48,5 @@ export async function GET(request: Request) {
     );
   }
 
-  return sessionNavigationResponse(ticket);
+  return sessionNavigationResponse(request, ticket);
 }

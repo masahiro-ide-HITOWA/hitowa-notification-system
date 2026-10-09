@@ -1,10 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const FALLBACK_ENCRYPTION_KEY = "hitowa-dev-mail-encryption-key";
-
 function encryptionKey(): Buffer {
-  const secret = process.env.ENCRYPTION_KEY || FALLBACK_ENCRYPTION_KEY;
+  const secret = process.env.ENCRYPTION_KEY?.trim() ?? "";
+  if (secret === "") {
+    throw new Error("ENCRYPTION_KEY is not set");
+  }
   return createHash("sha256").update(secret, "utf8").digest();
 }
 

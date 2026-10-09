@@ -9,6 +9,7 @@ import {
   latestSequenceRange,
   toMailDetail,
   toMailListItem,
+  toParsedMailLike,
   type MailDetail,
   type MailFetchedLike,
   type MailListItem,
@@ -192,7 +193,7 @@ export async function fetchMailDetail(
         throw new MailImapError("NOT_FOUND", "メールが見つかりません");
       }
       const parsed = await simpleParser(message.source);
-      return toMailDetail(message.uid, parsed as any);
+      return toMailDetail(message.uid, toParsedMailLike(parsed));
     },
     deps
   );

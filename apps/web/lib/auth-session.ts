@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { cookieDomainFromEnv } from "@/lib/deploy-env";
 import type { PortalUserProfile } from "@/lib/saml-user-attributes";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-mode";
 
@@ -14,7 +15,11 @@ interface SessionPayload {
 }
 
 function sessionSecret(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SESSION_SECRET?.trim() || env.SAML_ISSUER?.trim() || "hitowa-dev-session-secret";
+  const secret = env.SESSION_SECRET?.trim() ?? "";
+  if (secret === "") {
+    throw new Error("SESSION_SECRET is not set");
+  }
+  return secret;
 }
 
 function sign(value: string, env: NodeJS.ProcessEnv = process.env): string {
@@ -139,22 +144,24 @@ export function isSecureSessionCookie(
 export type SessionCookieSetOptions = {
   httpOnly: true;
   secure: boolean;
-  sameSite: "lax" | "none";
+  sameSite: "lax";
   path: "/";
   maxAge: number;
+  domain?: string;
 };
 
 export function sessionCookieOptions(
   request?: Request,
   env: NodeJS.ProcessEnv = process.env
 ): SessionCookieSetOptions {
-  const secure = isSecureSessionCookie(request, env);
+  const domain = cookieDomainFromEnv(env);
   return {
     httpOnly: true,
-    secure,
-    sameSite: secure ? "none" : "lax",
+    secure: isSecureSessionCookie(request, env),
+    sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE_SECONDS,
+    ...(domain ? { domain } : {}),
   };
 }
 

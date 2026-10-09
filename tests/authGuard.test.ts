@@ -17,6 +17,8 @@ describe("auth guard", () => {
     expect(isPublicAuthPath("/api/auth/saml/login")).toBe(true);
     expect(isPublicAuthPath("/api/auth/logout")).toBe(true);
     expect(isPublicAuthPath("/api/webhook/line")).toBe(true);
+    expect(isPublicAuthPath("/api/auth/saml/slo")).toBe(true);
+    expect(isPublicAuthPath("/api/notifications/unread-count")).toBe(true);
     expect(isPublicAuthPath("/mypage")).toBe(false);
   });
 

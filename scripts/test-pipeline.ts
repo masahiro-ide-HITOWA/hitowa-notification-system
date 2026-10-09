@@ -1,7 +1,12 @@
-import fetch from 'node-fetch';
-
 const BASE_URL = process.env.PORTAL_BASE_URL || 'http://localhost:3000';
-const WEBHOOK_SECRET_KEY = process.env.WEBHOOK_SECRET_KEY || 'hitowa_secret_key_2026';
+
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+  const body: unknown = await response.json();
+  if (typeof body === "object" && body !== null) {
+    return body as Record<string, unknown>;
+  }
+  return {};
+}
 
 // 擬似的なカオナビからの評価シート提出依頼メール (RAW MIME / Text)
 const mockKaonaviMail = `From: no-reply@kaonavi.jp
@@ -36,7 +41,7 @@ async function runPipelineTest() {
   const codeRes = await fetch(`${BASE_URL}/api/auth/code`, {
     headers: { 'x-user-id': process.env.PORTAL_USER_ID ?? '' }
   });
-  const codeData = (await codeRes.json()) as any;
+  const codeData = await readJson(codeRes);
   
   if (!codeData.success) {
     console.error('❌ コード発行失敗:', codeData);
@@ -62,20 +67,22 @@ async function runPipelineTest() {
       ]
     })
   });
-  const lineWebhookData = (await lineWebhookRes.json()) as any;
+  const lineWebhookData = await readJson(lineWebhookRes);
   console.log(`✅ LINE 連携処理結果:`, lineWebhookData, '\n');
 
   // STEP 3: KAGOYA転送SaaSメールの受取 ＆ 解析 ＆ PUSH通知配信テスト
-  console.log('【STEP 3】SaaS通知メール受取フック (/api/webhook/mail) のテスト...');
-  const mailWebhookRes = await fetch(`${BASE_URL}/api/webhook/mail`, {
+  console.log('【STEP 3】SaaS通知メール受取フック (/api/webhooks/email) のテスト...');
+  const mailWebhookRes = await fetch(`${BASE_URL}/api/webhooks/email`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain',
-      'x-api-key': WEBHOOK_SECRET_KEY
-    },
-    body: mockKaonaviMail
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'no-reply@kaonavi.jp',
+      to: 'yamada.t@hitowa.com',
+      subject: '【カオナビ】2026年度上期 人事評価シート提出のお願い',
+      text: mockKaonaviMail,
+    }),
   });
-  const mailWebhookData = (await mailWebhookRes.json()) as any;
+  const mailWebhookData = await readJson(mailWebhookRes);
 
   console.log(`✅ メールフック処理結果:`);
   console.dir(mailWebhookData, { depth: null });

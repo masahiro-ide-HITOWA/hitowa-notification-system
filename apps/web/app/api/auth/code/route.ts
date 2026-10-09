@@ -70,9 +70,10 @@ export async function POST(request: NextRequest) {
       employeeId,
       lineUserId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "連携に失敗しました";
     return NextResponse.json(
-      { success: false, message: error.message },
+      { success: false, message },
       { status: 500 }
     );
   }

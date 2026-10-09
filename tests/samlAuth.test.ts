@@ -243,8 +243,8 @@ describe("session token", () => {
     expect(sessionCookieFromHeader(null)).toBeUndefined();
   });
 
-  it("uses SameSite=None and Secure on HTTPS for SAML ACS", () => {
-    const httpsRequest = new Request("https://main.d17na73qopyazf.amplifyapp.com/api/auth/saml/callback", {
+  it("uses SameSite=Lax and omits Domain unless COOKIE_DOMAIN is set", () => {
+    const httpsRequest = new Request("https://notification.hitowa.com/api/auth/saml/callback", {
       headers: { "x-forwarded-proto": "https" },
     });
     expect(isSecureSessionCookie(httpsRequest, { NODE_ENV: "production" })).toBe(true);
@@ -252,11 +252,19 @@ describe("session token", () => {
       httpOnly: true,
       path: "/",
       secure: true,
-      sameSite: "none",
+      sameSite: "lax",
     });
+    expect(sessionCookieOptions(httpsRequest, { NODE_ENV: "production" }).domain).toBeUndefined();
+    expect(
+      sessionCookieOptions(httpsRequest, {
+        NODE_ENV: "production",
+        COOKIE_DOMAIN: ".hitowa.com",
+      }).domain
+    ).toBe(".hitowa.com");
     expect(
       sessionCookieOptions(new Request("http://localhost/api/auth/saml/callback"), {
         NODE_ENV: "test",
+        COOKIE_DOMAIN: "localhost",
       })
     ).toMatchObject({
       secure: false,
@@ -350,12 +358,8 @@ describe("SAML routes with mock auth", () => {
         success: false,
         message: "SAML Response の検証に失敗しました",
       });
-      if (typeof body !== "object" || body === null || !("detail" in body)) {
-        throw new Error("detail missing");
-      }
-      expect(String(body.detail)).toContain("EnvCertLen:");
-      expect(String(body.detail)).toContain("Start:");
-      expect(String(body.detail)).toContain("End:");
+      expect(JSON.stringify(body)).not.toContain("EnvCertLen");
+      expect(JSON.stringify(body)).not.toContain("Start:");
     } finally {
       if (previous === undefined) {
         delete process.env.USE_MOCK_AUTH;
@@ -387,11 +391,9 @@ describe("SAML routes with mock auth", () => {
       expect(joined).toMatch(/hitowa_session=/);
       expect(joined).toMatch(/Path=\//i);
       expect(joined).toMatch(/HttpOnly/i);
-      expect(joined).toMatch(/Secure/i);
       expect(joined).toMatch(/SameSite=Lax/i);
       expect(joined).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/i);
-      expect(setCookies.some((cookie) => /Domain=localhost/i.test(cookie))).toBe(true);
-      expect(setCookies.some((cookie) => !/Domain=/i.test(cookie))).toBe(true);
+      expect(joined).not.toMatch(/Domain=/i);
 
       const postRes = await logoutPost(new Request("http://localhost/api/auth/logout", { method: "POST" }));
       expect(postRes.status).toBe(302);
@@ -435,12 +437,10 @@ describe("SAML routes with mock auth", () => {
         "https://main.d17na73qopyazf.amplifyapp.com/login?logged_out=true"
       );
       const setCookies = getRes.headers.getSetCookie();
-      expect(
-        setCookies.some((cookie) => /Domain=main\.d17na73qopyazf\.amplifyapp\.com/i.test(cookie))
-      ).toBe(true);
-      expect(setCookies.some((cookie) => !/Domain=/i.test(cookie))).toBe(true);
+      expect(setCookies.some((cookie) => /Domain=/i.test(cookie))).toBe(false);
+      expect(setCookies.some((cookie) => /Secure/i.test(cookie))).toBe(true);
 
-      process.env.COOKIE_DOMAIN = "portal.example.test";
+      process.env.COOKIE_DOMAIN = ".hitowa.com";
       const fromCookieEnv = await logoutGet(
         new Request("http://localhost/api/auth/logout", {
           headers: { host: "ignored.example.test" },
@@ -449,7 +449,7 @@ describe("SAML routes with mock auth", () => {
       expect(
         fromCookieEnv.headers
           .getSetCookie()
-          .some((cookie) => /Domain=portal\.example\.test/i.test(cookie))
+          .some((cookie) => /Domain=\.hitowa\.com/i.test(cookie))
       ).toBe(true);
     } finally {
       if (previousAppUrl === undefined) {
@@ -485,8 +485,9 @@ describe("SAML routes with mock auth", () => {
       expect(setCookie).toMatch(/hitowa_session=/);
       expect(setCookie).toMatch(/Path=\//i);
       expect(setCookie).toMatch(/HttpOnly/i);
-      expect(setCookie).toMatch(/Secure/i);
       expect(setCookie).toMatch(/SameSite=Lax/i);
+      expect(setCookie).not.toMatch(/Domain=/i);
+      expect(setCookie).toMatch(/Max-Age=28800/i);
     } finally {
       if (previous === undefined) {
         delete process.env.USE_MOCK_AUTH;

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { parseNotificationFeed } from "@/lib/notification-query";
 
 type Listener = () => void;
 
@@ -62,14 +61,25 @@ export function useUnreadNotificationCount(portalUserId: string): number {
 
     async function loadUnread() {
       try {
-        const res = await fetch("/api/notifications", {
-          headers: { "x-user-id": portalUserId },
+        const res = await fetch("/api/notifications/unread-count", {
+          credentials: "include",
         });
-        const parsed = parseNotificationFeed(await res.json());
-        if (!cancelled) {
-          replaceUnreadNotificationCount(parsed?.unreadCount ?? 0, requestGeneration);
+        const body: unknown = await res.json();
+        const count =
+          typeof body === "object" &&
+          body !== null &&
+          "unreadCount" in body &&
+          typeof body.unreadCount === "number"
+            ? body.unreadCount
+            : 0;
+        if (!res.ok) {
+          throw new Error("unread count failed");
         }
-      } catch {
+        if (!cancelled) {
+          replaceUnreadNotificationCount(count, requestGeneration);
+        }
+      } catch (error) {
+        console.error("[notifications] unread badge failed", error);
         if (!cancelled) {
           replaceUnreadNotificationCount(0, requestGeneration);
         }

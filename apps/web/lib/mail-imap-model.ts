@@ -133,6 +133,41 @@ export function toMailListItem(message: MailFetchedLike): MailListItem {
   };
 }
 
+function readAddress(value: unknown): ParsedMailLike["from"] {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const text = typeof record.text === "string" ? record.text : undefined;
+  const addresses = Array.isArray(record.value)
+    ? record.value.flatMap((item) => {
+        if (typeof item !== "object" || item === null) {
+          return [];
+        }
+        const address = item as Record<string, unknown>;
+        const email = typeof address.address === "string" ? address.address : undefined;
+        const name = typeof address.name === "string" ? address.name : undefined;
+        return email || name ? [{ address: email, name }] : [];
+      })
+    : undefined;
+  return { text, value: addresses };
+}
+
+export function toParsedMailLike(value: unknown): ParsedMailLike {
+  if (typeof value !== "object" || value === null) {
+    return {};
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    subject: typeof record.subject === "string" ? record.subject : undefined,
+    date: record.date instanceof Date ? record.date : undefined,
+    html: typeof record.html === "string" ? record.html : false,
+    text: typeof record.text === "string" ? record.text : false,
+    from: readAddress(record.from),
+    to: readAddress(record.to),
+  };
+}
+
 export function toMailDetail(uid: number, parsed: ParsedMailLike): MailDetail {
   const html = typeof parsed.html === "string" ? parsed.html : "";
   const text = typeof parsed.text === "string" ? parsed.text : "";

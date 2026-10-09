@@ -14,7 +14,8 @@ applications:
         build:
           commands:
             # buildPath is the repo root. Next.js loads this file from the app directory at build time.
-            - env | grep -E '^(SAML_|USE_MOCK_AUTH|NEXT_PUBLIC_|DYNAMODB_|LINE_)' > apps/web/.env.production || true
+            - node scripts/check-required-env.mjs
+            - env | grep -E '^(SAML_|USE_MOCK_AUTH|NEXT_PUBLIC_|DYNAMODB_|LINE_|SESSION_SECRET|ENCRYPTION_KEY|COOKIE_DOMAIN|PORTAL_ORIGIN|WEBHOOK_SECRET_KEY|MAIL_|AWS_REGION|NOTIFICATION_)' > apps/web/.env.production || true
             - npm run build --workspace=@hitowa/web
       artifacts:
         # Next.js App Router / SSR: deploy the .next output, not a static `out/` folder.
